@@ -1,0 +1,32 @@
+{
+  "student_id": "s1001",
+  "student_name": "Alex Kim",
+  "major": "CS",
+  "current_semester": "Spring 2026",
+  "completed_courses": [
+    {
+      "course_id": "CS101",
+      "term": "Fall 2025",
+      "grade": "A",
+      "credits": 3
+    },
+    {
+      "course_id": "CS102",
+      "term": "Spring 2026",
+      "grade": "B+",
+      "credits": 3
+    },
+    {
+      "course_id": "MATH101",
+      "term": "Fall 2025",
+      "grade": "A-",
+      "credits": 4
+    },
+    {
+      "course_id": "ENG101",
+      "term": "Spring 2026",
+      "grade": "B",
+      "credits": 3
+    }
+  ]
+}

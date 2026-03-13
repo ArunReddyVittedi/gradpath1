@@ -1,0 +1,40 @@
+{
+  "term": "Fall 2026",
+  "offerings": [
+    {
+      "course_id": "CS201",
+      "section": "001",
+      "credits": 3
+    },
+    {
+      "course_id": "CS210",
+      "section": "001",
+      "credits": 3
+    },
+    {
+      "course_id": "CS220",
+      "section": "001",
+      "credits": 3
+    },
+    {
+      "course_id": "CS230",
+      "section": "001",
+      "credits": 3
+    },
+    {
+      "course_id": "MATH201",
+      "section": "001",
+      "credits": 4
+    },
+    {
+      "course_id": "ENG101",
+      "section": "001",
+      "credits": 3
+    },
+    {
+      "course_id": "HIST101",
+      "section": "001",
+      "credits": 3
+    }
+  ]
+}
