@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List
 
+from .schedule_tools import get_offered_course_ids
+
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 CATALOGS_DIR = DATA_DIR / "catalogs"
@@ -32,3 +34,26 @@ def get_course_prerequisites(course_id: str) -> List[str]:
         if course.get("course_id") == course_id:
             return course.get("prerequisites", [])
     return []
+
+
+def load_major_planning_context(major: str, target_semester: str) -> Dict[str, Any]:
+    """Return only the catalog data needed for one major and one term."""
+    catalog = load_catalog_data()
+    required_courses = get_required_courses(major)
+
+    course_details: Dict[str, Dict[str, Any]] = {}
+    for course in catalog.get("courses", []):
+        course_id = course.get("course_id")
+        if course_id in required_courses:
+            course_details[course_id] = {
+                "credits": course.get("credits", 0),
+                "prerequisites": course.get("prerequisites", []),
+            }
+
+    return {
+        "major": major,
+        "target_semester": target_semester,
+        "required_courses": required_courses,
+        "course_details": course_details,
+        "offered_in_target_semester": get_offered_course_ids(target_semester),
+    }

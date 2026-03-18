@@ -1,56 +1,39 @@
 """Planning agent for GradPath.
 
-This agent recommends next-semester courses using built-in guardrails.
+This agent recommends next-semester courses from compact history/catalog summaries.
 """
 
 from google.adk.agents import LlmAgent
 
-from gradpath.tools import (
-    get_completed_courses,
-    get_course_prerequisites,
-    get_offered_course_ids,
-    get_required_courses,
-    load_catalog_data,
-)
-
-
 planner_agent = LlmAgent(
     name="planner_agent",
-    description="Recommends next-semester courses while enforcing planning guardrails.",
-    model="gemini-2.0-flash",
-    tools=[
-        get_completed_courses,
-        get_required_courses,
-        get_course_prerequisites,
-        get_offered_course_ids,
-        load_catalog_data,
-    ],
+    description="Uses compact history and catalog summaries to recommend next-semester courses.",
+    model="gemini-2.5-flash",
     instruction="""
 You are the Planning Agent for GradPath.
 
 Goal:
-- Recommend next-semester courses for the student.
+- Recommend next-semester courses using only the compact summaries produced by the previous agents.
 
 Inputs you should expect:
 - student_id
 - major
+- completed_courses
+- course_details
+- required_courses
+- offered_in_target_semester
 - target_semester
 - max_credits
 
-Required guardrails (must always be enforced):
-1. Do not recommend completed courses.
-2. Do not recommend courses with unmet prerequisites.
-3. Do not exceed max_credits.
-4. Do not recommend courses not offered in target_semester.
-
 How to work:
-1. Call get_completed_courses(student_id).
-2. Call get_required_courses(major).
-3. Call get_offered_course_ids(target_semester).
-4. Call load_catalog_data() so you can read each course's credits.
-5. Evaluate required courses in order and keep only courses that pass all guardrails.
-6. Add courses until adding one more would exceed max_credits.
-7. Return recommendations plus short reasons for skipped required courses.
+1. Use the history-agent summary to identify the student's completed courses.
+2. Use the catalog-agent summary to identify required courses, credits, prerequisites, and target-term offerings.
+3. Evaluate required courses in order.
+4. Do not recommend completed courses.
+5. Do not recommend courses with unmet prerequisites.
+6. Do not recommend courses not offered in the target semester.
+7. Do not exceed max_credits.
+8. Return recommendations plus short reasons for skipped required courses.
 
 Output format:
 Return only JSON with this shape:
@@ -69,8 +52,12 @@ Return only JSON with this shape:
 }
 
 Rules:
-- Prefer required courses only for this beginner version.
-- Keep reasons short and use the exact reason labels shown above.
-- If nothing qualifies, recommended_courses should be an empty list.
+- Use only the data produced by the previous agents.
+- Keep reasons short and use exactly these labels:
+  completed
+  unmet_prerequisites
+  not_offered
+  credit_limit
+- If history data indicates the transcript is unavailable or OCR is required, return an empty recommendation list and explain that in skipped_courses using course_id="TRANSCRIPT".
 """,
 )

@@ -1,4 +1,4 @@
-"""Planning helpers used for simple local evaluation."""
+"""Planning helpers used for deterministic schedule generation."""
 
 from typing import Any, Dict, List
 
@@ -9,6 +9,7 @@ from .catalog_tools import (
 )
 from .schedule_tools import get_offered_course_ids
 from .transcript_tools import get_completed_courses
+from .student_tools import load_student_profile
 
 
 def recommend_courses(
@@ -67,4 +68,54 @@ def recommend_courses(
         "recommended_courses": recommended_courses,
         "total_recommended_credits": total_credits,
         "skipped_courses": skipped_courses,
+    }
+
+
+def build_next_semester_schedule(
+    student_id: str, target_semester: str, max_credits: int
+) -> Dict[str, Any]:
+    """Build the next-term plan from normalized data using Python guardrails.
+
+    student_id can be an alias like `s1`, `T1`, or a canonical JSON-backed id
+    like `s1001`.
+    """
+    profile = load_student_profile(student_id)
+    if profile.get("status") != "ready":
+        return {
+            "status": profile.get("status", "unavailable"),
+            "student_ref": student_id,
+            "target_semester": target_semester,
+            "max_credits": max_credits,
+            "message": profile.get(
+                "message",
+                "Student transcript is not ready for schedule generation.",
+            ),
+            "source_pdf": profile.get("source_pdf"),
+            "recommended_courses": [],
+            "total_recommended_credits": 0,
+            "skipped_courses": [],
+        }
+
+    resolved_student_id = profile["student_id"]
+    major = profile["major"]
+    result = recommend_courses(
+        student_id=resolved_student_id,
+        major=major,
+        target_semester=target_semester,
+        max_credits=max_credits,
+    )
+
+    return {
+        "status": "ready",
+        "student_ref": student_id,
+        "student_id": resolved_student_id,
+        "student_name": profile.get("student_name"),
+        "major": major,
+        "current_semester": profile.get("current_semester"),
+        "target_semester": target_semester,
+        "max_credits": max_credits,
+        "completed_courses": get_completed_courses(resolved_student_id),
+        "recommended_courses": result["recommended_courses"],
+        "total_recommended_credits": result["total_recommended_credits"],
+        "skipped_courses": result["skipped_courses"],
     }

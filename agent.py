@@ -19,8 +19,8 @@ root_agent = SequentialAgent(
     description="Runs the GradPath academic planning flow in sequence.",
     sub_agents=[
         greeting_agent,  # Step 1: collect student planning inputs
-        history_agent,   # Step 2: summarize transcript history
-        catalog_agent,   # Step 3: summarize catalog constraints
-        planner_agent,   # Step 4: generate guarded recommendations
+        history_agent,   # Step 2: summarize one student's transcript
+        catalog_agent,   # Step 3: summarize one major/term catalog slice
+        planner_agent,   # Step 4: recommend next-semester courses
     ],
 )
