@@ -1,276 +1,255 @@
 # GradPath
 
-GradPath is an AI-powered academic planning assistant built with the [Google Agent Development Kit (ADK)](https://google.github.io/adk-docs/). It helps students plan their next semester by analyzing their transcript history, degree requirements, and available course offerings — using a four-agent sequential workflow so each agent only sees the data it needs.
+GradPath is an AI-powered academic planning assistant built around your existing Google ADK workflow. This repo now includes a full local web UI with:
 
----
+- a modern two-column student/advisor experience
+- a right-side chatbot for all user interaction
+- a left-side read-only dashboard that updates only from GradPath analysis
+- transcript upload support for `.json`, `.txt`, `.md`, and text-based `.pdf` files
+- a FastAPI wrapper layer so you can plug in your current Google ADK agent without replacing it
 
-## Table of Contents
+## What Was Added
 
-- [Project Structure](#project-structure)
-- [Architecture](#architecture)
-- [Data Flow](#data-flow)
-- [Setup](#setup)
-- [Running the App](#running-the-app)
-- [Example Prompt](#example-prompt)
-- [Troubleshooting](#troubleshooting)
-- [Evaluation](#evaluation)
-- [Data Ingestion](#data-ingestion)
-
----
-
-## Project Structure
-
-```
+```text
 gradpath/
-├── agent.py                        # Root sequential workflow orchestrator
-├── agents/
-│   ├── greeting_agent.py           # Step 1: Collects student planning inputs
-│   ├── history_agent.py            # Step 2: Loads & summarizes transcript history
-│   ├── catalog_agent.py            # Step 3: Loads degree requirements & offerings
-│   └── planner_agent.py            # Step 4: Recommends next-semester courses
-├── tools/
-│   ├── student_tools.py            # Resolve student IDs, load profiles
-│   ├── transcript_tools.py         # Access transcript data
-│   ├── catalog_tools.py            # Load catalogs, requirements, prerequisites
-│   ├── schedule_tools.py           # Load semester offerings
-│   └── planning_tools.py           # Course recommendation logic
-├── scripts/
-│   ├── build_source_manifest.py    # Rebuild the data registry
-│   ├── ingest_schedule_pdfs.py     # Parse schedule PDFs into JSON
-│   └── extract_catalog_pdf_text.py # Extract catalog PDF to text
-├── data/
-│   ├── transcripts/                # T1.pdf–T10.pdf + normalized student JSON
-│   ├── catalogs/                   # Catalog PDFs + normalized JSON
-│   ├── schedules/                  # Schedule PDFs + normalized JSON
-│   ├── registry/                   # student_index.json, source_manifest.json
-│   └── eval/                       # eval_cases.json (test cases)
-├── evaluate.py                     # Local evaluation runner
-└── .env                            # API key configuration
+├── backend/
+│   └── app/
+│       ├── main.py                    # FastAPI app + static frontend serving
+│       ├── models.py                  # API and dashboard schemas
+│       ├── routers/chat.py            # Session bootstrap + chat/upload routes
+│       └── services/
+│           ├── agent_adapter.py       # Wraps existing GradPath logic for the UI
+│           ├── session_store.py       # In-memory chat session state
+│           └── transcript_parser.py   # Upload parsing helpers
+├── frontend/
+│   ├── package.json
+│   ├── vite.config.ts
+│   └── src/
+│       ├── App.tsx
+│       ├── styles.css
+│       ├── lib/api.ts
+│       └── components/
+│           ├── ChatPanel.tsx
+│           ├── DashboardCard.tsx
+│           └── DashboardPanel.tsx
+├── run_gradpath_ui.py                 # Starts the local site and opens the browser
+└── requirements.txt                   # Backend dependencies
 ```
-
----
 
 ## Architecture
 
-GradPath uses a **four-agent sequential ADK flow**. Each agent receives only the minimal data slice it needs — no agent ever sees the full repository, all transcripts, or entire catalog documents at once. This keeps LLM context small and responses focused.
+- Frontend: React + Vite + TypeScript
+- Backend: FastAPI
+- Existing planning logic: your current Python GradPath agent/tooling
+- UI contract: the backend returns structured dashboard data and chat responses in one API call
 
+The user only interacts through chat. The dashboard cards are read-only and are updated only from backend analysis results.
+
+## How The Web Flow Works
+
+1. The browser opens a GradPath session with `GET /api/session`.
+2. The student types a message and can optionally upload a transcript file.
+3. `POST /api/chat` sends the message and file to FastAPI.
+4. The backend parses the upload, resolves a known student record if possible, and runs the adapter layer.
+5. The adapter returns:
+   - chat reply text
+   - completed courses
+   - degree progress summary
+   - recommended courses
+   - advising notes
+6. The frontend updates:
+   - the chat thread on the right
+   - the read-only dashboard cards on the left
+
+## Google ADK Integration Point
+
+The UI is designed to wrap your existing agent, not replace it.
+
+The main connection point is:
+
+- [backend/app/services/agent_adapter.py](/Users/arunr3ddy/Documents/New project/gradpath/backend/app/services/agent_adapter.py)
+
+Look for `_try_invoke_google_adk_agent(...)`.
+
+Right now, the UI backend uses your existing normalized data and planning logic as a safe local adapter. That gives you a working site immediately. If you want the web app to call your full Google ADK multi-agent pipeline directly, replace that stub with your ADK session runner and map the result back into the dashboard schema.
+
+## API Routes
+
+- `GET /api/session`
+  Returns the initial placeholder dashboard and starter chat history.
+
+- `POST /api/chat`
+  Accepts `multipart/form-data`:
+  - `session_id`
+  - `message`
+  - `transcript` optional file
+
+- `GET /api/schema`
+  Returns an example structured dashboard response shape for frontend/reference use.
+
+## Example Structured Response Schema
+
+`GET /api/schema` returns data shaped like this:
+
+```json
+{
+  "completed_courses": [
+    {
+      "course_id": "CS101",
+      "title": "Intro to Programming",
+      "term": "Fall 2025",
+      "grade": "A",
+      "credits": 3
+    }
+  ],
+  "progress_summary": {
+    "major": "CS",
+    "target_semester": "Fall 2026",
+    "credits_earned": 6,
+    "required_courses_total": 10,
+    "required_courses_completed": 2,
+    "required_courses_remaining": 8,
+    "percent_complete": 20.0,
+    "total_recommended_credits": 9
+  },
+  "recommended_courses": [
+    {
+      "course_id": "CS201",
+      "title": "Discrete Mathematics for CS",
+      "credits": 3,
+      "reason": "Fits remaining degree requirements, prerequisites, and term availability."
+    }
+  ],
+  "advising_notes": [
+    {
+      "level": "success",
+      "title": "Plan generated",
+      "message": "Prepared recommendations for Fall 2026."
+    }
+  ]
+}
 ```
-User Input
-    │
-    ▼
-┌─────────────────┐
-│  greeting_agent │  Collects: student_id, student_name,
-│                 │            target_semester, max_credits
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  history_agent  │  Loads: that student's transcript summary only
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  catalog_agent  │  Loads: that major's requirements +
-│                 │          target semester's course offerings
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  planner_agent  │  Outputs: personalized course recommendations
-└─────────────────┘
-```
 
-**LLM Model:** `gemini-2.5-flash` (configurable)
+## Transcript Upload Behavior
 
----
+Supported uploads:
 
-## Data Flow
+- `.json`
+- `.txt`
+- `.md`
+- `.pdf` if the PDF already contains extractable text
 
-The project treats **PDFs as source documents** and **JSON as normalized runtime data**. All planning happens against JSON only — this keeps token usage small.
+Notes:
 
-| Path | Description |
-|------|-------------|
-| `data/transcripts/T1.pdf` … `T10.pdf` | Source transcript PDFs (image scans) |
-| `data/transcripts/student_s1001.json` | Normalized transcript — ready ✅ |
-| `data/transcripts/student_s1002.json` | Normalized transcript — ready ✅ |
-| `data/transcripts/student_s1003.json` … | Not yet ready — OCR required ⚠️ |
-| `data/catalogs/*.pdf` | Source course catalog PDFs |
-| `data/catalogs/*.json` | Normalized catalog JSON |
-| `data/schedules/*.pdf` | Source schedule PDFs |
-| `data/schedules/*.json` | Normalized schedule JSON |
-| `data/registry/student_index.json` | Alias map: `T1 → s1 → s1001` |
-| `data/registry/source_manifest.json` | Registry of all current data files |
+- Scanned PDFs without embedded text will fail gracefully with a clear error.
+- Uploaded files are used only through the chat workflow.
+- The uploaded filename is shown in the chat panel.
+- The dashboard is not directly editable by the user.
 
-> **Note:** Transcript PDFs T3–T10 are image scans that require OCR before they can be converted to runtime JSON. Only students `s1001` and `s1002` are fully usable right now.
+## Running The Full Project Locally
 
----
+### 1. Backend setup
 
-## Setup
-
-### Prerequisites
-
-- Python 3.10+
-- A [Google AI Studio](https://aistudio.google.com) API key with access to Gemini models
-
-### 1. Navigate to the project root
+From the repo root:
 
 ```bash
-cd "C:\Users\Dell\Desktop\New folder"
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-### 2. Create a virtual environment
+If you are on Windows PowerShell, use:
 
-```bash
+```powershell
 python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
 ```
 
-### 3. Install the ADK framework
+### 2. Frontend setup
 
 ```bash
-.\.venv\Scripts\python.exe -m pip install google-adk
+cd frontend
+npm install
+npm run build
+cd ..
 ```
 
-> **PowerShell note:** If `.\.venv\Scripts\Activate.ps1` gives an "execution policy" error, either fix it with a one-time policy change or skip activation entirely.
+This creates `frontend/dist`, which FastAPI serves as the website.
 
-**Option A — Fix execution policy (one-time):**
-```powershell
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-.\.venv\Scripts\Activate.ps1
+### 3. Start the GradPath website
+
+```bash
+python run_gradpath_ui.py
 ```
 
-**Option B — Skip activation, call python directly:**
-```powershell
-.\.venv\Scripts\python.exe -m adk web
+That will:
+
+- start the FastAPI server on `http://127.0.0.1:8000`
+- open the local website in your browser
+
+## Frontend Dev Mode
+
+If you want live React hot reload during UI work:
+
+Terminal 1:
+
+```bash
+uvicorn backend.app.main:app --reload
 ```
 
-### 4. Configure your API key
+Terminal 2:
 
-Edit `gradpath/.env` and set your key:
+```bash
+cd frontend
+npm run dev
+```
+
+Then open `http://localhost:5173`.
+
+## Environment Variables
+
+Copy `.env.example` to `.env` and fill in what you need.
 
 ```env
 GOOGLE_API_KEY=your_google_api_key_here
+GRADPATH_USE_ADK_WRAPPER=false
+GRADPATH_DEFAULT_TARGET_SEMESTER=Fall 2026
+GRADPATH_DEFAULT_MAX_CREDITS=9
+GRADPATH_FRONTEND_ORIGIN=http://localhost:5173
 ```
 
----
+Meaning:
 
-## Running the App
+- `GOOGLE_API_KEY`: needed for your existing Google ADK setup
+- `GRADPATH_USE_ADK_WRAPPER`: set to `true` once you wire your real ADK invocation into the adapter
+- `GRADPATH_DEFAULT_TARGET_SEMESTER`: fallback term when the student does not specify one
+- `GRADPATH_DEFAULT_MAX_CREDITS`: fallback credit load
+- `GRADPATH_FRONTEND_ORIGIN`: CORS origin for Vite dev mode
 
-### Web UI (recommended)
+## Reasonable Assumptions Made
 
-```bash
-cd "C:\Users\Dell\Desktop\New folder"
-.\.venv\Scripts\python.exe -m adk web
-```
+- The current GradPath repo is primarily a local Python project and did not yet include a dedicated website.
+- Student-facing dashboard data should be derived from existing normalized transcript/catalog/schedule data when available.
+- If a student references a known ID like `s1`, `T1`, or `s1001`, the UI should use the existing data registry.
+- If the current ADK pipeline does not yet emit the exact structured schema needed by the UI, the adapter layer should provide that schema now.
+- Uploaded transcript parsing should work for structured or text-based files first, with graceful failure for scan-only PDFs.
 
-Opens a browser-based chat interface at `http://localhost:8000`.
+## Key Files To Customize Next
 
-### CLI mode
+- [backend/app/services/agent_adapter.py](/Users/arunr3ddy/Documents/New project/gradpath/backend/app/services/agent_adapter.py)
+- [backend/app/services/transcript_parser.py](/Users/arunr3ddy/Documents/New project/gradpath/backend/app/services/transcript_parser.py)
+- [frontend/src/App.tsx](/Users/arunr3ddy/Documents/New project/gradpath/frontend/src/App.tsx)
+- [frontend/src/components/DashboardPanel.tsx](/Users/arunr3ddy/Documents/New project/gradpath/frontend/src/components/DashboardPanel.tsx)
+- [frontend/src/components/ChatPanel.tsx](/Users/arunr3ddy/Documents/New project/gradpath/frontend/src/components/ChatPanel.tsx)
 
-```bash
-cd "C:\Users\Dell\Desktop\New folder"
-.\.venv\Scripts\python.exe -m adk run gradpath
-```
+## Verification Checklist
 
----
+After install/build, verify:
 
-## Example Prompt
-
-Once the app is running, try:
-
-```
-My student_id is s1.
-My name is Alex Kim.
-Target semester is Fall 2026.
-Max credits is 9.
-Please plan my next semester.
-```
-
-Student ID aliases are supported — `s1`, `T1`, and `s1001` all resolve to the same normalized record.
-
-**Available test students:** `s1001` (alias: `s1`, `T1`) and `s1002` (alias: `s2`, `T2`)
-
----
-
-## Troubleshooting
-
-### PowerShell execution policy error
-
-```
-Activate.ps1 cannot be loaded because running scripts is disabled on this system.
-```
-
-**Fix:** Skip activation entirely and use the full path to python:
-```bash
-.\.venv\Scripts\python.exe -m adk web
-```
-
-Or allow scripts for your user account (one-time):
-```powershell
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-```
-
----
-
-### 429 RESOURCE_EXHAUSTED — quota exceeded
-
-```
-Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests
-limit: 5, model: gemini-2.5-flash
-```
-
-This means you've hit the **free tier rate limit** of 5 requests per minute for `gemini-2.5-flash`.
-
-**Options:**
-
-| Fix | Details |
-|-----|---------|
-| Wait ~21 seconds | The quota resets per minute — works for occasional testing |
-| Switch to `gemini-2.0-flash` | Free tier allows 15 RPM — change the model name in agent files |
-| Enable billing | Upgrades to 1000+ RPM — set up at [ai.dev/rate-limit](https://ai.dev/rate-limit) |
-| Use a new API key | Each Google project gets its own free quota — create one at [aistudio.google.com](https://aistudio.google.com) |
-
----
-
-## Evaluation
-
-Run the local evaluation suite to check course recommendation accuracy:
-
-```bash
-cd "C:\Users\Dell\Desktop\New folder"
-python -m gradpath.evaluate
-```
-
-This runs test cases from `data/eval/eval_cases.json` and compares actual recommendations against expected outputs.
-
-**Current test cases:**
-- `s1001` — CS major, Fall 2026, 9 credits → expects `[CS201, CS210, MATH201]`
-- `s1002` — CS major, Fall 2026, 6 credits → expects `[CS220, CS230]`
-
----
-
-## Data Ingestion
-
-Only needed when source PDFs change.
-
-### Rebuild the registry
-
-```bash
-cd "C:\Users\Dell\Desktop\New folder"
-python -m gradpath.scripts.build_source_manifest
-```
-
-Refreshes `data/registry/student_index.json` and `data/registry/source_manifest.json`.
-
-### Extract schedule PDFs to JSON
-
-```bash
-.\.venv\Scripts\python.exe -m gradpath.scripts.ingest_schedule_pdfs
-```
-
-### Extract catalog PDF to text
-
-```bash
-.\.venv\Scripts\python.exe -m gradpath.scripts.extract_catalog_pdf_text
-```
-
-> **Transcript PDFs (T3–T10):** These are image scans and require an OCR step before they can be normalized into runtime JSON. This is not yet automated.
+- the site loads in the browser
+- the chat panel accepts text
+- transcript upload works
+- the dashboard updates only after the API responds
+- placeholder states show before any analysis
+- errors display clearly for unsupported or unparseable transcript files
