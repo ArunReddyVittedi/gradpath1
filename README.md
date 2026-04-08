@@ -1,172 +1,163 @@
-# GradPath
+# GradPath — AI-Powered Academic Planning Assistant
 
-GradPath is an AI-powered academic planning assistant built around your existing Google ADK workflow. This repo now includes a full local web UI with:
+GradPath is an AI-powered academic advising tool I built for Lincoln University students. It helps students figure out which courses to take next semester based on their transcript, declared major, and Lincoln University's real course catalog and schedule data.
 
-- a modern two-column student/advisor experience
-- a right-side chatbot for all user interaction
-- a left-side read-only dashboard that updates only from GradPath analysis
-- transcript upload support for `.json`, `.txt`, `.md`, and text-based `.pdf` files
-- a FastAPI wrapper layer so you can plug in your current Google ADK agent without replacing it
+A student uploads their transcript PDF, and GradPath automatically:
+- Parses their academic history (completed courses, GPA, credits earned)
+- Checks which required courses for their major they still need
+- Verifies prerequisites and semester availability
+- Recommends a personalized next-semester course plan
+- Displays everything in a live dashboard
 
-## What Was Added
+---
 
-```text
+## What I Built
+
+This project combines a multi-agent AI backend with a full web UI:
+
+- **5-agent AI pipeline** using Google ADK (Agent Development Kit) with Gemini 2.5 Flash
+- **FastAPI backend** that handles transcript uploads, session memory, and API routing
+- **React + Vite frontend** with a two-panel layout (dashboard on left, chat on right)
+- **Real Lincoln University data** — 597 courses from the 2026 catalog, Spring 2026 schedule with 468 sections, and degree requirements for 11 majors
+
+---
+
+## Project Structure
+
+```
 gradpath/
+├── agent.py                          # Root ADK SequentialAgent (5 sub-agents)
+├── agents/
+│   ├── greeting_agent.py             # Collects target semester and credit limit
+│   ├── transcript_agent.py           # Parses uploaded transcript PDF
+│   ├── history_agent.py              # Summarizes completed courses
+│   ├── catalog_agent.py              # Loads major requirements and schedule
+│   └── planner_agent.py              # Recommends next-semester courses
+├── tools/
+│   ├── catalog_tools.py              # Reads catalog and major requirements JSON
+│   ├── schedule_tools.py             # Reads semester schedule JSON
+│   ├── transcript_tools.py           # ADK tool for transcript extraction
+│   ├── transcript_parser.py          # pdfplumber-based PDF parsing
+│   └── transcript_schema.py          # Pydantic schemas + course ID normalization
 ├── backend/
 │   └── app/
-│       ├── main.py                    # FastAPI app + static frontend serving
-│       ├── models.py                  # API and dashboard schemas
-│       ├── routers/chat.py            # Session bootstrap + chat/upload routes
+│       ├── main.py                   # FastAPI app entry point
+│       ├── models.py                 # API response schemas
+│       ├── routers/chat.py           # /api/session and /api/chat endpoints
 │       └── services/
-│           ├── agent_adapter.py       # Maps ADK/planning output into the UI schema
-│           ├── adk_service.py         # Runs the live Google ADK workflow for web sessions
-│           ├── session_store.py       # In-memory chat session state
-│           └── transcript_parser.py   # Upload parsing helpers
+│           ├── agent_adapter.py      # Converts ADK output to dashboard data
+│           ├── adk_service.py        # Runs the ADK pipeline for web sessions
+│           ├── session_store.py      # In-memory session + profile persistence
+│           └── transcript_parser.py  # Upload parsing for the web API
 ├── frontend/
-│   ├── package.json
-│   ├── vite.config.ts
 │   └── src/
 │       ├── App.tsx
 │       ├── styles.css
-│       ├── lib/api.ts
 │       └── components/
 │           ├── ChatPanel.tsx
-│           ├── DashboardCard.tsx
 │           └── DashboardPanel.tsx
-├── run_gradpath_ui.py                 # Starts the local site and opens the browser
-└── requirements.txt                   # Backend dependencies
+├── data/
+│   ├── catalogs/
+│   │   ├── catalog_2026.json         # 597 real LU courses
+│   │   └── major_requirements.json   # Required courses for 11 majors
+│   └── schedules/
+│       ├── spring_2026.json          # 468 sections
+│       ├── summer_2026_gc.json       # 17 sections (Graduate Center)
+│       └── summer_2026_ol.json       # 64 sections (Online)
+├── scripts/
+│   └── parse_all.py                  # pdfplumber parser for LU PDFs
+├── run_gradpath_ui.py                # One-command project launcher
+└── requirements.txt
 ```
 
-## Architecture
+---
 
-- Frontend: React + Vite + TypeScript
-- Backend: FastAPI
-- Existing planning logic: your current Python GradPath agent/tooling
-- UI contract: the backend returns structured dashboard data and chat responses in one API call
+## How It Works
 
-The user only interacts through chat. The dashboard cards are read-only and are updated only from backend analysis results.
+### Full Request Flow
 
-## How The Web Flow Works
+1. Student opens the app — a new session is created with a blank dashboard
+2. Student uploads their transcript PDF (or types their student ID)
+3. FastAPI receives the upload and runs `pdfplumber` to extract text
+4. Gemini parses the raw text into structured JSON (courses, GPA, student info)
+5. Course codes are normalized to canonical LU format (e.g. `CSC1058` → `CSC-1058`)
+6. Failed grades (F, NP, NC, U) are excluded from completed courses
+7. The student profile is passed to the Google ADK pipeline:
 
-1. The browser opens a GradPath session with `GET /api/session`.
-2. The student types a message and can optionally upload a transcript file.
-3. `POST /api/chat` sends the message and file to FastAPI.
-4. The backend parses the upload, resolves a known student record if possible, and runs the ADK workflow when it can.
-5. The adapter returns:
-   - chat reply text
-   - completed courses
-   - degree progress summary
-   - recommended courses
-   - advising notes
-6. The frontend updates:
-   - the chat thread on the right
-   - the read-only dashboard cards on the left
-
-## Google ADK Integration Point
-
-The UI is designed to wrap your existing agent, not replace it.
-
-The main connection points are:
-
-- [backend/app/services/agent_adapter.py](/Users/arunr3ddy/Documents/New project/gradpath/backend/app/services/agent_adapter.py)
-- [backend/app/services/adk_service.py](/Users/arunr3ddy/Documents/New project/gradpath/backend/app/services/adk_service.py)
-
-The web app now attempts to run the real ADK multi-agent flow first for known student records and maps the planner output into the dashboard schema. If the live ADK call cannot run, the backend falls back to the local planning adapter so the site still works during development or when transcript uploads do not map to the current ADK tools.
-
-## API Routes
-
-- `GET /api/session`
-  Returns the initial placeholder dashboard and starter chat history.
-
-- `POST /api/chat`
-  Accepts `multipart/form-data`:
-  - `session_id`
-  - `message`
-  - `transcript` optional file
-
-- `GET /api/schema`
-  Returns an example structured dashboard response shape for frontend/reference use.
-
-## Example Structured Response Schema
-
-`GET /api/schema` returns data shaped like this:
-
-```json
-{
-  "completed_courses": [
-    {
-      "course_id": "CS101",
-      "title": "Intro to Programming",
-      "term": "Fall 2025",
-      "grade": "A",
-      "credits": 3
-    }
-  ],
-  "progress_summary": {
-    "major": "CS",
-    "target_semester": "Fall 2026",
-    "credits_earned": 6,
-    "required_courses_total": 10,
-    "required_courses_completed": 2,
-    "required_courses_remaining": 8,
-    "percent_complete": 20.0,
-    "total_recommended_credits": 9
-  },
-  "recommended_courses": [
-    {
-      "course_id": "CS201",
-      "title": "Discrete Mathematics for CS",
-      "credits": 3,
-      "reason": "Fits remaining degree requirements, prerequisites, and term availability."
-    }
-  ],
-  "advising_notes": [
-    {
-      "level": "success",
-      "title": "Plan generated",
-      "message": "Prepared recommendations for Fall 2026."
-    }
-  ]
-}
+```
+greeting_agent   → determines target semester and max credits
+transcript_agent → reads transcript from session state
+history_agent    → extracts list of completed course IDs
+catalog_agent    → loads required courses, prerequisites, schedule offerings
+planner_agent    → applies constraints and outputs recommended courses
 ```
 
-## Transcript Upload Behavior
+8. The planner checks three constraints for each required course:
+   - Are prerequisites satisfied?
+   - Is the course offered this semester?
+   - Would adding it exceed the credit limit?
+9. The dashboard updates with recommendations, progress %, and advising notes
+10. The student profile is saved in session memory — follow-up messages don't require re-uploading the transcript
 
-Supported uploads:
+### Session Memory
 
-- `.json`
-- `.txt`
-- `.md`
-- `.pdf` if the PDF already contains extractable text
+After the first message, GradPath remembers the student's profile (major, completed courses, semester) for the rest of the browser session. This works by saving the profile dict in `SessionStore` after every request and loading it at the start of the next one. If a student's major was not declared on the transcript, GradPath asks them to type it and automatically detects phrases like "I am a CS student" to update the plan.
 
-Notes:
+---
 
-- Scanned PDFs without embedded text will fail gracefully with a clear error.
-- Uploaded files are used only through the chat workflow.
-- The uploaded filename is shown in the chat panel.
-- The dashboard is not directly editable by the user.
+## Data
 
-## Running The Full Project Locally
+All data was parsed directly from real Lincoln University PDF files using `scripts/parse_all.py`:
 
-### 1. Backend setup
+| File | Source | Size |
+|---|---|---|
+| `catalog_2026.json` | LU Academic Catalog 2026 PDF | 597 courses, 44 departments |
+| `major_requirements.json` | LU degree requirements | 11 majors, 11–22 courses each |
+| `spring_2026.json` | LU Spring 2026 Course Schedule PDF | 468 sections |
+| `summer_2026_gc.json` | LU Summer 2026 GC Schedule PDF | 17 sections |
+| `summer_2026_ol.json` | LU Summer 2026 Online Schedule PDF | 64 sections |
 
-From the repo root:
+---
+
+## Tech Stack
+
+| Component | Technology |
+|---|---|
+| AI Agents | Google ADK (SequentialAgent + LlmAgent) |
+| LLM | Gemini 2.5 Flash |
+| Backend | FastAPI + Uvicorn |
+| Frontend | React + Vite + TypeScript |
+| PDF Parsing | pdfplumber |
+| Data Validation | Pydantic |
+| Session Memory | Python in-memory dict (InMemoryRunner) |
+
+---
+
+## Running the Project
+
+### 1. Clone and set up the environment
 
 ```bash
+git clone https://github.com/ArunReddyVittedi/gradpath1.git
+cd gradpath1
 python3 -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate       # Windows: .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
-If you are on Windows PowerShell, use:
+### 2. Set up your API key
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+Copy `.env.example` to `.env` and add your Google API key:
+
+```env
+GOOGLE_API_KEY=your_google_api_key_here
+GRADPATH_TRANSCRIPT_LLM_MODEL=gemini-2.5-flash
+GRADPATH_FRONTEND_ORIGIN=http://localhost:5173
 ```
 
-### 2. Frontend setup
+Get a free key at [console.cloud.google.com/apis/credentials](https://console.cloud.google.com/apis/credentials).
+
+### 3. Build the frontend
 
 ```bash
 cd frontend
@@ -175,81 +166,48 @@ npm run build
 cd ..
 ```
 
-This creates `frontend/dist`, which FastAPI serves as the website.
-
-### 3. Start the GradPath website
+### 4. Run
 
 ```bash
 python run_gradpath_ui.py
 ```
 
-That will:
+Opens at **http://127.0.0.1:8000**
 
-- start the FastAPI server on `http://127.0.0.1:8000`
-- open the local website in your browser
+---
 
-## Frontend Dev Mode
+## API Endpoints
 
-If you want live React hot reload during UI work:
+| Method | Route | Description |
+|---|---|---|
+| GET | `/api/session` | Start a new session, returns blank dashboard |
+| POST | `/api/chat` | Send message + optional transcript, returns updated dashboard |
+| GET | `/api/schema` | Example response shape for reference |
 
-Terminal 1:
+`POST /api/chat` accepts `multipart/form-data`:
+- `session_id` — from `/api/session`
+- `message` — student's chat message
+- `transcript` — optional PDF file upload
 
-```bash
-uvicorn backend.app.main:app --reload
-```
+---
 
-Terminal 2:
+## Supported Transcript Uploads
 
-```bash
-cd frontend
-npm run dev
-```
+- `.pdf` — text-based PDFs (most LU transcripts)
+- `.json`, `.txt`, `.md` — structured or plain text
 
-Then open `http://localhost:5173`.
+Scanned/image-only PDFs return an "OCR required" message with a clear explanation.
 
-## Environment Variables
+---
 
-Copy `.env.example` to `.env` and fill in what you need.
+## Majors Supported
 
-```env
-GOOGLE_API_KEY=your_google_api_key_here
-GRADPATH_USE_ADK_WRAPPER=true
-GRADPATH_DEFAULT_TARGET_SEMESTER=Fall 2026
-GRADPATH_DEFAULT_MAX_CREDITS=9
-GRADPATH_FRONTEND_ORIGIN=http://localhost:5173
-```
+CS, Biology (BIO), Chemistry (CHE), Biochemistry (BIOCHEM), Health Science (HSC), Accounting (ACC), Finance (FIN), Management (MGT), Information Systems (ISM), Criminal Justice (CRJ), Anthropology (ANT)
 
-Meaning:
+---
 
-- `GOOGLE_API_KEY`: needed for your existing Google ADK setup
-- `GRADPATH_USE_ADK_WRAPPER`: enables the live ADK workflow and falls back locally if the agent cannot complete
-- `GRADPATH_DEFAULT_TARGET_SEMESTER`: fallback term when the student does not specify one
-- `GRADPATH_DEFAULT_MAX_CREDITS`: fallback credit load
-- `GRADPATH_FRONTEND_ORIGIN`: CORS origin for Vite dev mode
+## Known Limitations
 
-## Reasonable Assumptions Made
-
-- The current GradPath repo is primarily a local Python project and did not yet include a dedicated website.
-- Student-facing dashboard data should be derived from existing normalized transcript/catalog/schedule data when available.
-- If a student references a known ID like `s1`, `T1`, or `s1001`, the UI should use the existing data registry.
-- If the current ADK pipeline does not yet emit the exact structured schema needed by the UI, the adapter layer should provide that schema now.
-- Uploaded transcript parsing should work for structured or text-based files first, with graceful failure for scan-only PDFs.
-
-## Key Files To Customize Next
-
-- [backend/app/services/agent_adapter.py](/Users/arunr3ddy/Documents/New project/gradpath/backend/app/services/agent_adapter.py)
-- [backend/app/services/transcript_parser.py](/Users/arunr3ddy/Documents/New project/gradpath/backend/app/services/transcript_parser.py)
-- [frontend/src/App.tsx](/Users/arunr3ddy/Documents/New project/gradpath/frontend/src/App.tsx)
-- [frontend/src/components/DashboardPanel.tsx](/Users/arunr3ddy/Documents/New project/gradpath/frontend/src/components/DashboardPanel.tsx)
-- [frontend/src/components/ChatPanel.tsx](/Users/arunr3ddy/Documents/New project/gradpath/frontend/src/components/ChatPanel.tsx)
-
-## Verification Checklist
-
-After install/build, verify:
-
-- the site loads in the browser
-- the chat panel accepts text
-- transcript upload works
-- the dashboard updates only after the API responds
-- placeholder states show before any analysis
-- errors display clearly for unsupported or unparseable transcript files
+- Fall 2026 schedule data is not yet available — fall planning uses catalog-inferred availability
+- Session memory is in-memory only — cleared when the server restarts
+- Currently plans one semester at a time — multi-semester roadmap not yet implemented
