@@ -1,6 +1,6 @@
 # GradPath — AI-Powered Academic Planning Assistant
 
-GradPath is an AI-powered academic advising tool I built for Lincoln University students. It helps students figure out which courses to take next semester based on their transcript, declared major, and Lincoln University's real course catalog and schedule data.
+GradPath is an AI-powered academic advising tool we built for Lincoln University students. It helps students figure out which courses to take next semester based on their transcript, declared major, and Lincoln University's real course catalog and schedule data.
 
 A student uploads their transcript PDF, and GradPath automatically:
 - Parses their academic history (completed courses, GPA, credits earned)
@@ -11,7 +11,7 @@ A student uploads their transcript PDF, and GradPath automatically:
 
 ---
 
-## What I Built
+## What We Built
 
 This project combines a multi-agent AI backend with a full web UI:
 
