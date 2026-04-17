@@ -9,12 +9,16 @@ from uuid import uuid4
 
 from tools.catalog_tools import load_catalog_data, load_major_planning_context
 from tools.student_tools import load_student_index, load_student_profile
+from tools.planning_tools import build_full_graduation_plan
 
+from ..config import DEFAULT_MAX_CREDITS, DEFAULT_MIN_CREDITS
 from ..models import (
     AdvisingNote,
     ChatMessage,
     CompletedCourse,
     DashboardData,
+    PlannedCourse,
+    PlannedSemester,
     ProgressSummary,
     RecommendedCourse,
     ResponseSchemaExample,
@@ -342,13 +346,46 @@ def _build_dashboard_from_profile(
         )
     notes.extend(skipped_notes)
 
+    # Build multi-semester graduation plan
+    current_semester = profile.get("current_semester", "Spring 2026")
+    student_type = profile.get("student_type", "undergraduate")
+    raw_planned = build_full_graduation_plan(
+        major=major,
+        completed_course_ids=list(completed_ids),
+        current_semester=current_semester,
+        max_credits_per_semester=DEFAULT_MAX_CREDITS,
+        min_credits_per_semester=DEFAULT_MIN_CREDITS,
+        student_type=student_type,
+    )
+    planned_semesters = [
+        PlannedSemester(
+            term=sem["term"],
+            total_credits=sem["total_credits"],
+            courses=[
+                PlannedCourse(
+                    course_id=cid,
+                    title=course_lookup.get(cid, {}).get("title", "Unknown Course"),
+                    credits=int(course_lookup.get(cid, {}).get("credits", 0)),
+                )
+                for cid in sem["course_ids"]
+            ],
+        )
+        for sem in raw_planned
+    ]
+
     return DashboardData(
         student=StudentSnapshot(
             student_name=profile.get("student_name", "Unknown Student"),
             student_id=profile.get("student_id", profile.get("student_ref", "Unknown")),
             major=major,
-            current_semester=profile.get("current_semester", "Unknown"),
+            current_semester=current_semester,
             source=profile.get("source", "student_registry"),
+            student_type=student_type,
+            gpa=profile.get("gpa"),
+            expected_graduation=profile.get("expected_graduation"),
+            career_goal=profile.get("career_goal"),
+            preferences=profile.get("preferences"),
+            email=profile.get("email"),
         ),
         completed_courses=completed_courses,
         progress_summary=ProgressSummary(
@@ -363,6 +400,7 @@ def _build_dashboard_from_profile(
         ),
         recommended_courses=recommended_courses,
         advising_notes=notes,
+        planned_semesters=planned_semesters,
     )
 
 
@@ -385,22 +423,50 @@ def _apply_adk_plan(
             )
         )
 
-    reason_map = {
-        "completed": "Already completed.",
-        "unmet_prerequisites": "Prerequisites are not yet satisfied.",
-        "not_offered": "Not offered in the selected semester.",
-        "credit_limit": "Would exceed the requested credit limit.",
-    }
+    # Group skipped courses by reason and generate summary notes
+    skipped_by_reason: Dict[str, List[str]] = {}
     for skipped in adk_plan.get("skipped_courses", []):
         course_id = skipped.get("course_id", "UNKNOWN")
         reason = skipped.get("reason", "deferred")
-        notes.append(
-            AdvisingNote(
-                level="warning" if reason in {"unmet_prerequisites", "credit_limit"} else "info",
-                title="Transcript issue" if course_id == "TRANSCRIPT" else f"{course_id} skipped",
-                message=reason_map.get(reason, reason),
-            )
+        if course_id == "TRANSCRIPT":
+            continue
+        skipped_by_reason.setdefault(reason, []).append(course_id)
+
+    completed_list = skipped_by_reason.get("completed", [])
+    prereq_list = skipped_by_reason.get("unmet_prerequisites", [])
+    not_offered_list = skipped_by_reason.get("not_offered", [])
+    credit_list = skipped_by_reason.get("credit_limit", [])
+
+    # Build one paragraph summary note
+    summary_parts = []
+
+    if completed_list:
+        summary_parts.append(
+            f"{len(completed_list)} required course{'s are' if len(completed_list) != 1 else ' is'} already completed and counted toward your degree."
         )
+
+    if prereq_list:
+        prereq_str = ", ".join(prereq_list[:3]) + ("..." if len(prereq_list) > 3 else "")
+        summary_parts.append(
+            f"{len(prereq_list)} course{'s' if len(prereq_list) != 1 else ''} ({prereq_str}) {'are' if len(prereq_list) != 1 else 'is'} waiting on prerequisites — complete earlier courses first to unlock {'them' if len(prereq_list) != 1 else 'it'}."
+        )
+
+    if not_offered_list:
+        summary_parts.append(
+            f"{len(not_offered_list)} course{'s are' if len(not_offered_list) != 1 else ' is'} not offered this semester and will be available in a future term."
+        )
+
+    if credit_list:
+        summary_parts.append(
+            f"{len(credit_list)} course{'s were' if len(credit_list) != 1 else ' was'} deferred to the next semester to stay within the credit cap."
+        )
+
+    if summary_parts:
+        notes.append(AdvisingNote(
+            level="info",
+            title="Degree Progress Summary",
+            message=" ".join(summary_parts),
+        ))
 
     total_credits = int(adk_plan.get("total_recommended_credits", 0))
     return recommended, notes, total_credits

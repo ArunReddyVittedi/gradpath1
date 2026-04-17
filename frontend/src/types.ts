@@ -42,8 +42,26 @@ export type StudentSnapshot = {
   student_name: string;
   student_id: string;
   major: string;
+  student_type?: string | null;
+  gpa?: number | null;
   current_semester: string;
+  expected_graduation?: string | null;
+  career_goal?: string | null;
+  preferences?: string | null;
+  email?: string | null;
   source: string;
+};
+
+export type PlannedCourse = {
+  course_id: string;
+  title: string;
+  credits: number;
+};
+
+export type PlannedSemester = {
+  term: string;
+  courses: PlannedCourse[];
+  total_credits: number;
 };
 
 export type DashboardData = {
@@ -52,6 +70,7 @@ export type DashboardData = {
   progress_summary: ProgressSummary;
   recommended_courses: RecommendedCourse[];
   advising_notes: AdvisingNote[];
+  planned_semesters: PlannedSemester[];
 };
 
 export type SessionBootstrap = {

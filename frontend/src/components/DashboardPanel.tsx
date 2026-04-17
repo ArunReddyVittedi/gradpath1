@@ -1,4 +1,5 @@
-import type { DashboardData } from '../types';
+import { useState } from 'react';
+import type { CompletedCourse, PlannedSemester, DashboardData } from '../types';
 import { DashboardCard } from './DashboardCard';
 
 type DashboardPanelProps = {
@@ -7,6 +8,133 @@ type DashboardPanelProps = {
   sessionId: string;
   lastAnalysisTimestamp: string | null;
 };
+
+// ── Semester sort order ───────────────────────────────────────────
+const TERM_ORDER: Record<string, number> = { Spring: 0, Summer: 1, Fall: 2 };
+
+function parseTerm(term: string): { label: string; year: number; order: number } {
+  const parts = term.trim().split(/\s+/);
+  const year = parseInt(parts[parts.length - 1]) || 9999;
+  const season = parts[0] || '';
+  return { label: term, year, order: TERM_ORDER[season] ?? 1 };
+}
+
+function sortTerms(terms: string[]): string[] {
+  return [...terms].sort((a, b) => {
+    const ta = parseTerm(a);
+    const tb = parseTerm(b);
+    if (ta.year !== tb.year) return ta.year - tb.year;
+    return ta.order - tb.order;
+  });
+}
+
+function groupBySemester(courses: CompletedCourse[]): Record<string, CompletedCourse[]> {
+  return courses.reduce((acc, course) => {
+    const term = course.term || 'Unknown Term';
+    if (!acc[term]) acc[term] = [];
+    acc[term].push(course);
+    return acc;
+  }, {} as Record<string, CompletedCourse[]>);
+}
+
+// ── Accordion component ───────────────────────────────────────────
+function SemesterAccordion({ courses }: { courses: CompletedCourse[] }) {
+  const grouped = groupBySemester(courses);
+  const terms = sortTerms(Object.keys(grouped));
+  const [open, setOpen] = useState<Set<string>>(new Set());
+
+  const toggle = (term: string) => {
+    setOpen(prev => {
+      const next = new Set(prev);
+      next.has(term) ? next.delete(term) : next.add(term);
+      return next;
+    });
+  };
+
+  return (
+    <div className="semester-accordion">
+      {terms.map(term => {
+        const termCourses = grouped[term];
+        const totalCredits = termCourses.reduce((s, c) => s + (c.credits || 0), 0);
+        const isOpen = open.has(term);
+        return (
+          <div key={term} className="semester-block">
+            <button className="semester-header" onClick={() => toggle(term)}>
+              <span className="semester-chevron">{isOpen ? '▾' : '▸'}</span>
+              <span className="semester-name">{term}</span>
+              <span className="semester-meta">
+                {termCourses.length} course{termCourses.length !== 1 ? 's' : ''} · {totalCredits} cr
+              </span>
+            </button>
+            {isOpen && (
+              <ul className="semester-course-list">
+                {termCourses.map(course => (
+                  <li key={course.course_id} className="semester-course-item">
+                    <div className="semester-course-main">
+                      <strong>{course.course_id}</strong>
+                      <span>{course.title}</span>
+                    </div>
+                    <div className="semester-course-meta">
+                      {course.grade && <span className="pill">{course.grade}</span>}
+                      <span className="pill">{course.credits} cr</span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function PlannedSemesterAccordion({ semesters }: { semesters: PlannedSemester[] }) {
+  const [open, setOpen] = useState<Set<string>>(new Set());
+  const toggle = (term: string) => {
+    setOpen(prev => {
+      const next = new Set(prev);
+      next.has(term) ? next.delete(term) : next.add(term);
+      return next;
+    });
+  };
+
+  return (
+    <div className="semester-accordion planned-accordion">
+      <div className="planned-accordion__label">Planned semesters</div>
+      {semesters.map(sem => {
+        const isOpen = open.has(sem.term);
+        return (
+          <div key={sem.term} className="semester-block semester-block--planned">
+            <button className="semester-header" onClick={() => toggle(sem.term)}>
+              <span className="semester-chevron">{isOpen ? '▾' : '▸'}</span>
+              <span className="semester-name">{sem.term}</span>
+              <span className="semester-meta">
+                {sem.courses.length} course{sem.courses.length !== 1 ? 's' : ''} · {sem.total_credits} cr
+              </span>
+              <span className="pill planned-pill">Planned</span>
+            </button>
+            {isOpen && (
+              <ul className="semester-course-list">
+                {sem.courses.map((course: import('../types').PlannedCourse) => (
+                  <li key={course.course_id} className="semester-course-item">
+                    <div className="semester-course-main">
+                      <strong>{course.course_id}</strong>
+                      <span>{course.title}</span>
+                    </div>
+                    <div className="semester-course-meta">
+                      <span className="pill">{course.credits} cr</span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 function EmptyState({ text }: { text: string }) {
   return <p className="empty-state">{text}</p>;
@@ -34,7 +162,7 @@ export function DashboardPanel({
   sessionId,
   lastAnalysisTimestamp,
 }: DashboardPanelProps) {
-  const { student, progress_summary, completed_courses, recommended_courses, advising_notes } = dashboard;
+  const { student, progress_summary, completed_courses, recommended_courses, advising_notes, planned_semesters } = dashboard;
 
   return (
     <div className="dashboard-panel">
@@ -89,25 +217,38 @@ export function DashboardPanel({
               <span>Current semester</span>
               <strong>{student.current_semester}</strong>
             </div>
+            {student.student_type && (
+              <div>
+                <span>Student type</span>
+                <strong style={{ textTransform: 'capitalize' }}>{student.student_type}</strong>
+              </div>
+            )}
+            {student.gpa != null && (
+              <div>
+                <span>GPA</span>
+                <strong>{student.gpa.toFixed(2)}</strong>
+              </div>
+            )}
+            {student.career_goal && (
+              <div>
+                <span>Career goal</span>
+                <strong>{student.career_goal}</strong>
+              </div>
+            )}
+            {student.expected_graduation && (
+              <div>
+                <span>Expected graduation</span>
+                <strong>{student.expected_graduation}</strong>
+              </div>
+            )}
           </div>
           {completed_courses.length ? (
-            <ul className="course-list">
-              {completed_courses.map((course) => (
-                <li key={`${course.course_id}-${course.term ?? 'na'}`} className="course-list__item">
-                  <div>
-                    <strong>{course.course_id}</strong>
-                    <span>{course.title}</span>
-                  </div>
-                  <div className="course-list__meta">
-                    <span>{course.term || 'Term not available'}</span>
-                    <span>{course.grade || 'Grade n/a'}</span>
-                    <span>{course.credits} cr</span>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            <SemesterAccordion courses={completed_courses} />
           ) : (
             <EmptyState text="No transcript uploaded yet." />
+          )}
+          {planned_semesters.length > 0 && (
+            <PlannedSemesterAccordion semesters={planned_semesters} />
           )}
         </DashboardCard>
 

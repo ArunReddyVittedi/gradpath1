@@ -45,6 +45,24 @@ class StudentSnapshot(BaseModel):
     major: str
     current_semester: str
     source: str
+    student_type: Optional[str] = None
+    gpa: Optional[float] = None
+    expected_graduation: Optional[str] = None
+    career_goal: Optional[str] = None
+    preferences: Optional[str] = None
+    email: Optional[str] = None
+
+
+class PlannedCourse(BaseModel):
+    course_id: str
+    title: str
+    credits: int
+
+
+class PlannedSemester(BaseModel):
+    term: str
+    courses: List[PlannedCourse]
+    total_credits: int
 
 
 class DashboardData(BaseModel):
@@ -53,6 +71,7 @@ class DashboardData(BaseModel):
     progress_summary: ProgressSummary
     recommended_courses: List[RecommendedCourse]
     advising_notes: List[AdvisingNote]
+    planned_semesters: List[PlannedSemester] = []
 
 
 class ChatMessage(BaseModel):

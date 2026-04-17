@@ -2,7 +2,13 @@
   "student_id": "s1001",
   "student_name": "Alex Kim",
   "major": "CS",
+  "student_type": "undergraduate",
+  "gpa": 3.6,
   "current_semester": "Spring 2026",
+  "expected_graduation": "Spring 2028",
+  "career_goal": "Software Engineer",
+  "preferences": "balanced",
+  "email": "alexkim@udel.edu",
   "completed_courses": [
     {
       "course_id": "CS101",

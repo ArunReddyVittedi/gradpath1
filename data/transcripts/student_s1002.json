@@ -2,7 +2,13 @@
   "student_id": "s1002",
   "student_name": "Maya Patel",
   "major": "CS",
+  "student_type": "undergraduate",
+  "gpa": 3.4,
   "current_semester": "Spring 2026",
+  "expected_graduation": "Fall 2027",
+  "career_goal": "Data Scientist",
+  "preferences": "fastest",
+  "email": "mayapatel@udel.edu",
   "completed_courses": [
     {
       "course_id": "CS101",

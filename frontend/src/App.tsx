@@ -25,6 +25,7 @@ const fallbackDashboard: DashboardData = {
     total_recommended_credits: 0,
   },
   recommended_courses: [],
+  planned_semesters: [],
   advising_notes: [
     {
       level: 'info',
