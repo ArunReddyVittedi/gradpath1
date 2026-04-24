@@ -18,12 +18,20 @@ from gradpath.agents import (
 )
 
 # ADK does not allow the same agent instance to have two parent agents.
-# We need a separate greeting agent instance for the slim follow-up pipeline.
+# We need separate instances of greeting_agent and planner_agent for the slim pipeline.
 _followup_greeting_agent = LlmAgent(
     name="followup_greeting_agent",
     description="Collects only changed planning inputs on follow-up messages.",
     model="gemini-2.5-flash",
     instruction=greeting_agent.instruction,
+)
+
+_followup_planner_agent = LlmAgent(
+    name="followup_planner_agent",
+    description="Recommends next-semester courses for follow-up messages.",
+    model="gemini-2.5-flash",
+    tools=planner_agent.tools,
+    instruction=planner_agent.instruction,
 )
 
 # transcript + catalog are independent — run them at the same time
@@ -51,6 +59,6 @@ planner_only_agent = SequentialAgent(
     description="Runs greeting + planner only for follow-up messages.",
     sub_agents=[
         _followup_greeting_agent,  # Step 1: parse any updated inputs from the message
-        planner_agent,             # Step 2: re-plan using injected profile data
+        _followup_planner_agent,   # Step 2: re-plan using injected profile data
     ],
 )
