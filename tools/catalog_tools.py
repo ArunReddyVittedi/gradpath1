@@ -1,8 +1,19 @@
 """Tools for reading catalog, requirements, and prerequisites."""
 
 import json
+import re
 from pathlib import Path
 from typing import Any, Dict, List
+
+
+def _normalize(cid: str) -> str:
+    """Normalize course IDs to uppercase hyphenated format e.g. CSC-1058."""
+    cid = cid.strip().upper()
+    if re.match(r'^[A-Z]{2,5}-\d{3,4}', cid):
+        return cid
+    cid = re.sub(r'\s+', '-', cid)
+    cid = re.sub(r'^([A-Z]{2,5})(\d{3,4})', r'\1-\2', cid)
+    return cid
 
 from .schedule_tools import get_offered_course_ids
 
@@ -33,11 +44,11 @@ def get_required_courses(major: str) -> List[str]:
 
 
 def get_course_prerequisites(course_id: str) -> List[str]:
-    """Return prerequisite course IDs for one course."""
+    """Return prerequisite course IDs for one course, normalized to hyphen format."""
     catalog = load_catalog_data()
     for course in catalog:
         if course.get("course_id") == course_id:
-            return course.get("prerequisites", [])
+            return [_normalize(p) for p in course.get("prerequisites", [])]
     return []
 
 

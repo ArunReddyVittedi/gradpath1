@@ -38,9 +38,9 @@ def _normalize(cid: str) -> str:
 
 
 _MAX_SEMESTERS: Dict[str, int] = {
-    "undergraduate": 8,
-    "graduate": 4,
-    "phd": 10,
+    "undergraduate": 12,  # allow up to 12 semesters for students who are behind
+    "graduate": 6,
+    "phd": 12,
 }
 
 
@@ -278,6 +278,30 @@ def validate_course_plan(
     }
 
 
+def _collect_all_prerequisites(course_ids: List[str], catalog_lookup: Dict[str, Any]) -> List[str]:
+    """Collect all prerequisite courses (recursively) needed to unlock the given courses.
+
+    Returns a list of prerequisite course IDs not already in course_ids,
+    in dependency order (prerequisites come first).
+    """
+    needed = list(course_ids)
+    visited = set(course_ids)
+    prereq_courses: List[str] = []
+
+    queue = list(course_ids)
+    while queue:
+        cid = queue.pop(0)
+        for prereq in get_course_prerequisites(cid):
+            p = _normalize(prereq)
+            if p not in visited:
+                visited.add(p)
+                prereq_courses.append(p)
+                queue.append(p)
+
+    # Return only the extra prereqs not already in required list, in reverse order (roots first)
+    return [p for p in reversed(prereq_courses) if p not in set(course_ids)]
+
+
 def build_full_graduation_plan(
     major: str,
     completed_course_ids: List[str],
@@ -289,20 +313,24 @@ def build_full_graduation_plan(
     """Plan all remaining semesters until graduation.
 
     Uses the stored 2026 schedules as repeating templates for each season.
+    Includes prerequisite courses that are not in major requirements but are
+    needed to unlock required courses (e.g. MAT-1001 → MAT-1002 → MAT-1010).
     Returns a list of planned semester dicts with course_ids and credits.
     """
     required_courses = get_required_courses(major)
     catalog = load_catalog_data()
 
-    # Normalize credits lookup
-    credits_by_course = {
-        _normalize(c["course_id"]): c.get("credits", 0)
-        for c in (catalog if isinstance(catalog, list) else catalog.get("courses", []))
-    }
+    catalog_list = catalog if isinstance(catalog, list) else catalog.get("courses", [])
+    credits_by_course = {_normalize(c["course_id"]): c.get("credits", 0) for c in catalog_list}
+    catalog_lookup = {_normalize(c["course_id"]): c for c in catalog_list}
 
     placed = {_normalize(c) for c in completed_course_ids}
-    required_courses = [_normalize(c) for c in required_courses]
-    remaining = [c for c in required_courses if c not in placed]
+    required_normalized = [_normalize(c) for c in required_courses]
+
+    # Include prerequisite courses that are blocking required courses but not in requirements
+    blocker_prereqs = _collect_all_prerequisites(required_normalized, catalog_lookup)
+    all_to_plan = blocker_prereqs + required_normalized
+    remaining = [c for c in all_to_plan if c not in placed]
 
     max_semesters = _MAX_SEMESTERS.get(student_type.lower(), 8)
     current_term = _next_semester(current_semester)
@@ -314,7 +342,6 @@ def build_full_graduation_plan(
 
         season = current_term.split()[0]
         template = _template_term(season)
-        # Normalize offered set
         offered = {_normalize(c) for c in get_offered_course_ids(template)}
 
         semester_courses: List[str] = []
@@ -322,8 +349,7 @@ def build_full_graduation_plan(
         deferred: List[str] = []
 
         for course_id in remaining:
-            prereqs = [_normalize(p) for p in get_course_prerequisites(course_id)]
-            # Only check against courses completed BEFORE this semester (not within it)
+            prereqs = get_course_prerequisites(course_id)
             unmet = [p for p in prereqs if p not in placed]
             if unmet or course_id not in offered:
                 deferred.append(course_id)
