@@ -15,3 +15,9 @@ API_VERSION = "1.0.0"
 FRONTEND_ORIGIN = os.getenv("GRADPATH_FRONTEND_ORIGIN", "http://localhost:5173")
 DEFAULT_MAX_CREDITS = int(os.getenv("GRADPATH_DEFAULT_MAX_CREDITS", "12"))
 DEFAULT_MIN_CREDITS = int(os.getenv("GRADPATH_DEFAULT_MIN_CREDITS", "9"))
+
+# Total credits required to graduate by student type
+GRADUATION_CREDIT_REQUIREMENTS: dict = {
+    "undergraduate": 120,
+    "graduate": 30,
+}

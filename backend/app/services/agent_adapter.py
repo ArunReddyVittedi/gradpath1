@@ -2,16 +2,21 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
+import os
 import re
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
 
+LOGGER = logging.getLogger(__name__)
+
 from tools.catalog_tools import load_catalog_data, load_major_planning_context
 from tools.student_tools import load_student_index, load_student_profile
 from tools.planning_tools import build_full_graduation_plan
 
-from ..config import DEFAULT_MAX_CREDITS, DEFAULT_MIN_CREDITS
+from ..config import DEFAULT_MAX_CREDITS, DEFAULT_MIN_CREDITS, GRADUATION_CREDIT_REQUIREMENTS
 from ..models import (
     AdvisingNote,
     ChatMessage,
@@ -105,11 +110,122 @@ def build_schema_example() -> ResponseSchemaExample:
     )
 
 
+_FACTUAL_QUESTION_PATTERNS = [
+    "how many", "how much", "what is my", "what's my", "whats my",
+    "courses left", "courses remaining", "courses do i have",
+    "credits left", "credits remaining", "credits do i have", "credits earned",
+    "requirements left", "requirements remaining", "core requirements",
+    "am i on track", "when will i graduate", "how close", "my progress",
+    "my gpa", "completed courses", "what have i",
+]
+
+
+def _is_factual_question(message: str) -> bool:
+    lower = message.lower()
+    return any(pattern in lower for pattern in _FACTUAL_QUESTION_PATTERNS)
+
+
+async def _answer_factual_question(
+    message: str,
+    profile: Dict[str, Any],
+    session_dashboard: "DashboardData",
+) -> StructuredAgentResponse:
+    """Answer a factual question from existing profile data without touching the dashboard."""
+    from tools.catalog_tools import load_major_planning_context
+    from tools.planning_tools import _normalize
+
+    major = profile.get("major", "CS")
+    planning_context = load_major_planning_context(major, "Fall 2026")
+    # Normalize both sides so 'CSC1058' and 'CSC-1058' compare equal
+    required_courses = [_normalize(c) for c in planning_context.get("required_courses", [])]
+    completed_ids = {_normalize(c["course_id"]) for c in profile.get("completed_courses", [])}
+    required_completed = sum(1 for cid in required_courses if cid in completed_ids)
+    required_remaining = len(required_courses) - required_completed
+    credits_earned = sum(int(c.get("credits", 0)) for c in profile.get("completed_courses", []))
+
+    # Graduation requirement varies by student type
+    student_type = profile.get("student_type", "undergraduate")
+    graduation_req = GRADUATION_CREDIT_REQUIREMENTS.get(student_type, 120)
+    credits_to_graduate = max(graduation_req - credits_earned, 0)
+
+    # Pull totals from the live dashboard when available and it has real data.
+    # If the stored dashboard is still the placeholder (credits_to_graduate == 0 but
+    # we know the student has not yet graduated), fall back to the computed value.
+    dashboard_credits_to_graduate = (
+        session_dashboard.progress_summary.credits_to_graduate
+        if session_dashboard
+           and session_dashboard.progress_summary
+           and session_dashboard.progress_summary.credits_to_graduate > 0
+        else credits_to_graduate
+    )
+    total_planned_credits = sum(
+        sem.total_credits for sem in (session_dashboard.planned_semesters if session_dashboard else [])
+    )
+    elective_gap = max(dashboard_credits_to_graduate - total_planned_credits, 0)
+    elective_note = (
+        f"The required-course plan covers {total_planned_credits} of those {dashboard_credits_to_graduate} credits; "
+        f"the remaining {elective_gap} must come from electives or gen-ed courses."
+        if elective_gap > 0 and total_planned_credits > 0
+        else ""
+    )
+
+    context = f"""You are GradPath, a friendly AI academic advisor.
+
+The student asked: "{message}"
+
+Here is their current academic data (treat these numbers as exact — do not invent different ones):
+- Name: {profile.get("student_name", "Student")}
+- Major: {major}
+- Student type: {student_type}
+- Credits earned: {credits_earned}
+- Graduation requirement: {graduation_req} credits total
+- Credits still needed to graduate: {dashboard_credits_to_graduate}
+{("- " + elective_note) if elective_note else ""}
+- Required courses completed: {required_completed} out of {len(required_courses)}
+- Required courses remaining: {required_remaining}
+- GPA: {profile.get("gpa", "not available")}
+- Current semester: {profile.get("current_semester", "unknown")}
+
+Answer their question directly and conversationally in 1–3 sentences using ONLY the numbers above. Be specific. Do not hallucinate — if something is listed as "not available", say so. Do not suggest uploading a transcript. Do not offer to generate a new plan unless asked.
+"""
+    api_key = os.getenv("GOOGLE_API_KEY", "")
+    reply = ""
+    if api_key:
+        try:
+            from google import genai
+            client = genai.Client(api_key=api_key)
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None,
+                lambda: client.models.generate_content(model="gemini-2.5-flash", contents=context),
+            )
+            reply = (getattr(response, "text", "") or "").strip()
+        except Exception as exc:
+            LOGGER.warning("Factual question reply failed: %s", exc)
+
+    if not reply:
+        reply = (
+            f"You've completed {required_completed} of {len(required_courses)} required courses "
+            f"with {required_remaining} remaining. You have {credits_earned} credits earned and need "
+            f"{dashboard_credits_to_graduate} more to reach the {graduation_req}-credit graduation requirement."
+            + (f" Your required-course plan covers {total_planned_credits} of those; "
+               f"the remaining {elective_gap} credit(s) must come from electives."
+               if elective_gap > 0 and total_planned_credits > 0 else "")
+        )
+
+    return StructuredAgentResponse(
+        reply_text=reply,
+        dashboard=session_dashboard,
+        profile=profile,
+    )
+
+
 async def analyze_request(
     message: str,
     transcript: Optional[ParsedTranscript],
     web_session_id: str,
     session_profile: Optional[Dict[str, Any]] = None,
+    session_dashboard: Optional["DashboardData"] = None,
 ) -> StructuredAgentResponse:
     student_ref = _extract_student_ref(message)
 
@@ -208,6 +324,36 @@ async def analyze_request(
         )
 
     if profile.get("major", "Unknown") in {"Unknown", "Undergraduate", "Undeclared", ""}:
+        _VALID_MAJOR_NAMES = (
+            "Computer Science, Biology, Chemistry, Biochemistry, Physics, Mathematics, "
+            "History, Philosophy, Music, English, Communication, Sociology, Psychology, "
+            "Criminal Justice, Health Science, Human Services, Environmental Science, "
+            "Political Science, Pan-Africana Studies, Visual Arts, Accounting, Finance, "
+            "Management, Information Systems Management, Forensic Science"
+        )
+        # Detect if the user tried to declare a major that isn't in our catalog
+        tried_declaration = _looks_like_major_declaration(message)
+        if tried_declaration:
+            reply_text = (
+                f"I didn't recognize \"{tried_declaration}\" as a Lincoln University major. "
+                f"Please try one of the available majors: {_VALID_MAJOR_NAMES}."
+            )
+            note_message = (
+                f"'{tried_declaration}' is not a recognized Lincoln University major. "
+                f"Available majors: {_VALID_MAJOR_NAMES}."
+            )
+        else:
+            reply_text = (
+                f"Hi {profile.get('student_name', 'there')}! Your transcript was parsed successfully, "
+                "but it does not list a declared major. "
+                f"Please tell me your major (e.g. 'My major is Computer Science') so I can build your plan. "
+                f"Available majors: {_VALID_MAJOR_NAMES}."
+            )
+            note_message = (
+                "Your transcript does not list a declared major. "
+                "Please reply with your major (e.g. 'My major is Computer Science') "
+                f"so GradPath can build your degree plan. Available majors: {_VALID_MAJOR_NAMES}."
+            )
         dashboard = build_placeholder_dashboard()
         dashboard.student = StudentSnapshot(
             student_name=profile.get("student_name", "Student"),
@@ -221,19 +367,11 @@ async def analyze_request(
             AdvisingNote(
                 level="warning",
                 title="Major not declared on transcript",
-                message=(
-                    "Your transcript does not list a declared major. "
-                    "Please reply with your major (e.g. 'My major is Computer Science') "
-                    "so GradPath can build your degree plan."
-                ),
+                message=note_message,
             ),
         ]
         return StructuredAgentResponse(
-            reply_text=(
-                f"Hi {profile.get('student_name', 'there')}! Your transcript was parsed successfully, "
-                "but it does not list a declared major. "
-                "Please tell me your major (e.g. 'My major is Computer Science') so I can build your plan."
-            ),
+            reply_text=reply_text,
             dashboard=dashboard,
             profile=profile,
         )
@@ -241,6 +379,18 @@ async def analyze_request(
     # Follow-up message — profile already exists from a previous turn.
     # Skip transcript_agent, history_agent, catalog_agent and go straight to planner.
     if session_profile is not None and transcript is None:
+        # When the student just declared a major for the first time, skip the factual-question
+        # shortcut and run the planner so they get a real plan, not stale placeholder stats.
+        _unknown_majors = {"Unknown", "Undergraduate", "Undeclared", ""}
+        major_just_declared = (
+            session_profile.get("major", "Unknown") in _unknown_majors
+            and profile.get("major", "Unknown") not in _unknown_majors
+        )
+        # Factual questions (e.g. "how many courses left") — answer from profile,
+        # don't re-run the planner, and don't touch the dashboard.
+        if _is_factual_question(message) and session_dashboard is not None and not major_just_declared:
+            return await _answer_factual_question(message, profile, session_dashboard)
+
         return await _try_invoke_followup_agent(
             web_session_id=web_session_id,
             message=message,
@@ -298,8 +448,31 @@ async def _try_invoke_google_adk_agent(
         extra_notes=notes,
         adk_plan=adk_result.planner_json,
     )
-    reply_text = _build_reply_text(dashboard, target_semester)
+    reply_text = await _generate_conversational_reply(dashboard, target_semester, message)
     return StructuredAgentResponse(reply_text=reply_text, dashboard=dashboard, profile=profile)
+
+
+def _is_early_graduation_request(message: str) -> bool:
+    keywords = ["early graduation", "graduate early", "finish early", "graduate faster", "fastest path", "accelerate"]
+    lower = message.lower()
+    return any(kw in lower for kw in keywords) or _extract_requested_semesters(message) is not None
+
+
+def _extract_requested_semesters(message: str) -> Optional[int]:
+    """Extract a specific semester count from messages like 'graduate in 2 semesters'."""
+    patterns = [
+        r'(?:in|next|within|only)\s+(\d+)\s+semester',
+        r'(\d+)\s+semester[s]?\s+(?:left|remaining|to graduate|plan)',
+        r'complete\s+(?:in|within)\s+(\d+)',
+        r'finish\s+(?:in|within)\s+(\d+)',
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, message.lower())
+        if match:
+            val = int(match.group(1))
+            if 1 <= val <= 8:
+                return val
+    return None
 
 
 async def _try_invoke_followup_agent(
@@ -309,6 +482,19 @@ async def _try_invoke_followup_agent(
     extra_notes: List[AdvisingNote],
 ) -> StructuredAgentResponse:
     """Slim pipeline for follow-up messages — greeting + planner only."""
+    if _is_early_graduation_request(message):
+        requested_sems = _extract_requested_semesters(message)
+        credits_earned = sum(int(c.get("credits", 0)) for c in profile.get("completed_courses", []))
+        graduation_req = GRADUATION_CREDIT_REQUIREMENTS.get(profile.get("student_type", "undergraduate"), 120)
+        credits_left = max(graduation_req - credits_earned, 0)
+        if requested_sems and requested_sems > 0:
+            import math
+            credits_per_sem = math.ceil(credits_left / requested_sems)
+            max_credits_override = min(max(credits_per_sem, 15), 21)
+        else:
+            max_credits_override = 15
+        profile = {**profile, "preferences": "fastest", "max_credits": max_credits_override}
+
     adk_service = get_adk_runner_service()
     adk_result = await adk_service.run_followup(
         web_session_id=web_session_id,
@@ -347,7 +533,7 @@ async def _try_invoke_followup_agent(
         extra_notes=notes,
         adk_plan=adk_result.planner_json,
     )
-    reply_text = _build_reply_text(dashboard, target_semester)
+    reply_text = await _generate_conversational_reply(dashboard, target_semester, message)
     return StructuredAgentResponse(reply_text=reply_text, dashboard=dashboard, profile=updated_profile)
 
 
@@ -384,6 +570,11 @@ def _build_dashboard_from_profile(
     credits_earned = sum(course.credits for course in completed_courses)
     required_completed = sum(1 for course_id in required_courses if course_id in completed_ids)
     required_remaining = max(len(required_courses) - required_completed, 0)
+    required_credits_total = sum(
+        int(course_lookup.get(cid, {}).get("credits", 0))
+        for cid in required_courses
+        if cid not in completed_ids
+    )
     percent_complete = round((required_completed / len(required_courses)) * 100, 1) if required_courses else 0.0
 
     notes = list(extra_notes)
@@ -413,11 +604,16 @@ def _build_dashboard_from_profile(
     completed_courses_raw = profile.get("completed_courses", [])
     semesters_used = len({c.get("term") for c in completed_courses_raw if c.get("term")})
 
+    preferences = profile.get("preferences", "balanced")
+    max_credits_for_plan = int(profile.get("max_credits", DEFAULT_MAX_CREDITS))
+    if preferences == "fastest":
+        max_credits_for_plan = max(max_credits_for_plan, 15)
+
     graduation_result = build_full_graduation_plan(
         major=major,
         completed_course_ids=list(completed_ids),
         current_semester=current_semester,
-        max_credits_per_semester=DEFAULT_MAX_CREDITS,
+        max_credits_per_semester=max_credits_for_plan,
         min_credits_per_semester=DEFAULT_MIN_CREDITS,
         student_type=student_type,
         semesters_used=semesters_used,
@@ -457,6 +653,35 @@ def _build_dashboard_from_profile(
         for sem in raw_planned
     ]
 
+    graduation_requirement = GRADUATION_CREDIT_REQUIREMENTS.get(student_type, 120)
+    credits_to_graduate = max(graduation_requirement - credits_earned, 0)
+    total_planned_credits = sum(sem.total_credits for sem in planned_semesters)
+
+    if total_planned_credits > credits_to_graduate:
+        overage = total_planned_credits - credits_to_graduate
+        notes.append(AdvisingNote(
+            level="warning",
+            title="Plan exceeds graduation requirement",
+            message=(
+                f"Your planned semesters total {total_planned_credits} credits, but you only need "
+                f"{credits_to_graduate} more credits to reach the {graduation_requirement}-credit "
+                f"graduation requirement. You are over-scheduled by {overage} credit(s). "
+                "Consider dropping an elective or speaking with your advisor to trim the plan."
+            ),
+        ))
+    elif total_planned_credits < credits_to_graduate:
+        elective_gap = credits_to_graduate - total_planned_credits
+        notes.append(AdvisingNote(
+            level="info",
+            title="Additional elective credits needed",
+            message=(
+                f"Your required-course plan covers {total_planned_credits} of the {credits_to_graduate} credits "
+                f"you still need to graduate. The remaining {elective_gap} credit(s) must come from electives, "
+                "free electives, or general education courses not listed in this plan. "
+                "Speak with your advisor to choose courses that fulfill those requirements."
+            ),
+        ))
+
     return DashboardData(
         student=StudentSnapshot(
             student_name=profile.get("student_name", "Unknown Student"),
@@ -479,6 +704,8 @@ def _build_dashboard_from_profile(
             required_courses_total=len(required_courses),
             required_courses_completed=required_completed,
             required_courses_remaining=required_remaining,
+            required_credits_total=required_credits_total,
+            credits_to_graduate=credits_to_graduate,
             percent_complete=percent_complete,
             total_recommended_credits=total_recommended_credits,
         ),
@@ -556,21 +783,125 @@ def _apply_adk_plan(
     return recommended, notes, total_credits
 
 
-def _build_reply_text(dashboard: DashboardData, target_semester: str) -> str:
+async def _generate_conversational_reply(
+    dashboard: DashboardData,
+    target_semester: str,
+    message: str = "",
+) -> str:
+    """Call Gemini to generate a natural, conversational advisor reply."""
     student = dashboard.student
-    if not dashboard.recommended_courses:
+    progress = dashboard.progress_summary
+
+    # Guard: no plan at all — neither recommended courses nor planned semesters
+    if not dashboard.recommended_courses and not dashboard.planned_semesters:
         return (
-            f"I reviewed {student.student_name}'s record for {target_semester}, but I couldn't assemble a valid next-term plan yet. "
-            "Check the advising notes for prerequisite, availability, or transcript issues."
+            f"I reviewed {student.student_name}'s record for {target_semester}, but couldn't put together a valid plan right now. "
+            "Check the advising notes on the left — there may be prerequisite gaps or availability issues."
         )
 
-    recommendations = ", ".join(
-        f"{course.course_id} ({course.title})" for course in dashboard.recommended_courses
+    planned_count = len(dashboard.planned_semesters)
+    total_planned_credits = sum(sem.total_credits for sem in dashboard.planned_semesters)
+    elective_gap = max(progress.credits_to_graduate - total_planned_credits, 0)
+
+    # Use the first planned semester as the "next semester" for the chat reply.
+    # This is more accurate than recommended_courses, which can land in later semesters
+    # once prerequisite ordering is applied by the graduation planner.
+    if dashboard.planned_semesters:
+        next_sem = dashboard.planned_semesters[0]
+        next_sem_label = next_sem.term
+        course_list = ", ".join(f"{c.course_id} ({c.title})" for c in next_sem.courses)
+        total_credits = next_sem.total_credits
+    else:
+        next_sem_label = target_semester
+        course_list = ", ".join(f"{c.course_id} ({c.title})" for c in dashboard.recommended_courses)
+        total_credits = sum(c.credits for c in dashboard.recommended_courses)
+
+    elective_note = (
+        f"\n- IMPORTANT: The required-course plan covers only {total_planned_credits} of the {progress.credits_to_graduate} credits needed to graduate. "
+        f"The remaining {elective_gap} credit(s) must come from electives or gen-ed courses not listed in this plan."
+        if elective_gap > 0 else
+        f"\n- The required-course plan covers all {total_planned_credits} credits needed to graduate."
     )
+
+    # Include any warning/error advising notes so Gemini knows about unscheduled courses,
+    # credit overages, or other constraints that the plan could not satisfy.
+    warning_notes = [
+        note for note in dashboard.advising_notes
+        if note.level in ("warning", "error")
+    ]
+    warnings_block = ""
+    if warning_notes:
+        warnings_block = "\nACTIVE WARNINGS (must be reflected in your reply if relevant):\n" + "\n".join(
+            f"- [{note.title}] {note.message}" for note in warning_notes
+        )
+
+    # If the student requested a specific semester count, include that so Gemini
+    # can honestly compare it against what the plan actually produced.
+    requested_sems = _extract_requested_semesters(message)
+    requested_sems_note = (
+        f"\n- Student requested graduation in {requested_sems} semester(s), but the plan produced {planned_count} semester(s) due to prerequisite or schedule constraints."
+        if requested_sems is not None and requested_sems != planned_count
+        else ""
+    )
+
+    context = f"""You are GradPath, an AI academic advisor. The analysis of this student's academic record has ALREADY been completed by the GradPath system — you are reporting the results. Do not say you "can't analyze transcripts" or "can't update plans" — that work is done. Your job is only to communicate the results clearly.
+
+The student said: "{message}"
+
+ACTUAL RESULTS from the completed analysis (treat this as ground truth):
+- Student: {student.student_name}, Major: {student.major}
+- Immediate next semester: {next_sem_label}
+- Courses planned for next semester: {course_list} ({total_credits} credits)
+- Required courses completed: {progress.required_courses_completed}/{progress.required_courses_total}
+- Degree progress: {progress.percent_complete}% complete
+- Credits needed to graduate: {progress.credits_to_graduate}
+- Credits covered by the required-course plan: {total_planned_credits}{elective_note}
+- Total planned semesters remaining: {planned_count}{requested_sems_note}{warnings_block}
+
+CRITICAL RULES:
+1. The analysis is complete — never say you cannot analyze transcripts, access data, or update plans.
+2. Only say something "changed" or "updated" if it is reflected in the results above.
+3. If the student requested something not reflected in the results (e.g. asked for 2 semesters but plan shows {planned_count}), be honest — report what the plan shows and briefly explain why (prerequisites, credit limits, schedule availability).
+4. Do not invent course removals, additions, or changes not shown in the data.
+5. If something truly cannot be done, say so and suggest an alternative.
+6. NEVER claim the plan covers all {progress.credits_to_graduate} credits needed to graduate if total_planned_credits ({total_planned_credits}) is less than that. Always be honest about the elective gap.
+7. If there are ACTIVE WARNINGS above, mention the most important one to the student.
+8. Be warm, conversational, and specific — 2–4 sentences, no bullet points, no headers.
+"""
+
+    api_key = os.getenv("GOOGLE_API_KEY", "")
+    if not api_key:
+        LOGGER.warning("GOOGLE_API_KEY not set — falling back to template reply")
+        elective_suffix = (
+            f" Your required-course plan covers {total_planned_credits} of those; "
+            f"the remaining {elective_gap} credit(s) must come from electives."
+            if elective_gap > 0 else ""
+        )
+        return (
+            f"Here's your updated plan for {target_semester}: {course_list} ({total_credits} credits). "
+            f"You're {progress.percent_complete}% through required courses with {progress.credits_to_graduate} credits left to graduate.{elective_suffix}"
+        )
+
+    try:
+        from google import genai
+        client = genai.Client(api_key=api_key)
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(
+            None,
+            lambda: client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=context,
+            ),
+        )
+        reply = (getattr(response, "text", "") or "").strip()
+        if reply:
+            return reply
+    except Exception as exc:
+        LOGGER.warning("Conversational reply generation failed: %s", exc)
+
     return (
-        f"I analyzed {student.student_name}'s academic history and updated the dashboard for {target_semester}. "
-        f"Recommended next courses: {recommendations}. "
-        f"Degree progress is now shown on the left, along with advising notes and warnings."
+        f"Here's your updated plan for {target_semester}: {course_list} ({total_credits} credits). "
+        f"You're {progress.percent_complete}% through required courses with {progress.credits_to_graduate} credits left to graduate."
     )
 
 
@@ -626,6 +957,18 @@ def _extract_major_from_message(message: str) -> Optional[str]:
     for phrase, major_key in sorted(_MESSAGE_MAJOR_PATTERNS.items(), key=lambda x: -len(x[0])):
         if phrase in lower:
             return major_key
+    return None
+
+
+def _looks_like_major_declaration(message: str) -> Optional[str]:
+    """Return the declared major string if the message looks like 'my major is X', else None."""
+    match = re.search(
+        r"(?:my major is|i(?:'m| am) (?:a |an )?|major(?:ing)? in)\s+([A-Za-z][A-Za-z\s\-]{1,40})",
+        message,
+        re.IGNORECASE,
+    )
+    if match:
+        return match.group(1).strip().rstrip(".")
     return None
 
 

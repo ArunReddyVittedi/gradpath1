@@ -259,14 +259,14 @@ export function DashboardPanel({
               <strong>{progress_summary.credits_earned}</strong>
             </div>
             <div className="stat">
-              <span>Required completed</span>
+              <span>Required courses done</span>
               <strong>
                 {progress_summary.required_courses_completed}/{progress_summary.required_courses_total}
               </strong>
             </div>
             <div className="stat">
-              <span>Remaining</span>
-              <strong>{progress_summary.required_courses_remaining}</strong>
+              <span>Credits to graduate</span>
+              <strong>{progress_summary.credits_to_graduate}</strong>
             </div>
           </div>
           <div className="progress-meter">

@@ -22,6 +22,8 @@ class ProgressSummary(BaseModel):
     required_courses_total: int
     required_courses_completed: int
     required_courses_remaining: int
+    required_credits_total: int = 0
+    credits_to_graduate: int = 0
     percent_complete: float
     total_recommended_credits: int = 0
 

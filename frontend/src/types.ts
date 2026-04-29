@@ -21,6 +21,8 @@ export type ProgressSummary = {
   required_courses_total: number;
   required_courses_completed: number;
   required_courses_remaining: number;
+  required_credits_total: number;
+  credits_to_graduate: number;
   percent_complete: number;
   total_recommended_credits: number;
 };

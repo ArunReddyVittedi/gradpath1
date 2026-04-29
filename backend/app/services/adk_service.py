@@ -111,14 +111,17 @@ class AdkRunnerService:
         runner = self._get_followup_runner()
         session_meta = await self._ensure_followup_session(web_session_id)
 
-        completed_ids = [c["course_id"] for c in profile.get("completed_courses", [])]
+        completed_courses = profile.get("completed_courses", [])
+        completed_ids = [c["course_id"] for c in completed_courses]
+        # Sum from completed_courses — profile["credits_earned"] is not always populated
+        credits_earned = sum(int(c.get("credits", 0)) for c in completed_courses)
         prompt = (
             f"My student_id is {profile.get('student_id', '')}.\n"
             f"My name is {profile.get('student_name', 'Student')}.\n"
             f"My major is {profile.get('major', 'CS')}.\n"
             f"My current semester is {profile.get('current_semester', 'Unknown')}.\n"
             f"My completed courses are: {', '.join(completed_ids) or 'none'}.\n"
-            f"My credits earned so far: {profile.get('credits_earned', 0)}.\n"
+            f"My credits earned so far: {credits_earned}.\n"
             f"{message.strip() or 'Please update my semester plan.'}\n"
             "Return the full GradPath planning result."
         )

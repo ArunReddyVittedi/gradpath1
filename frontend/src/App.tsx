@@ -21,6 +21,8 @@ const fallbackDashboard: DashboardData = {
     required_courses_total: 0,
     required_courses_completed: 0,
     required_courses_remaining: 0,
+    required_credits_total: 0,
+    credits_to_graduate: 0,
     percent_complete: 0,
     total_recommended_credits: 0,
   },

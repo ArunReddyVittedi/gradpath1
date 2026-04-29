@@ -146,6 +146,17 @@
       "message": "Normalized transcript JSON is available.",
       "source_pdf": "T4.pdf",
       "transcript_file": "student_0498908.json"
+    },
+    {
+      "student_key": "0500117",
+      "aliases": [
+        "0500117",
+        "0500117"
+      ],
+      "status": "ready",
+      "message": "Normalized transcript JSON is available.",
+      "source_pdf": "T8.pdf",
+      "transcript_file": "student_0500117.json"
     }
   ]
 }

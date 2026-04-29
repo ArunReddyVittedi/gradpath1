@@ -11,7 +11,7 @@ from pathlib import Path
 _parent = Path(__file__).resolve().parents[3]
 if str(_parent) not in sys.path:
     sys.path.insert(0, str(_parent))
-_pkg = importlib.import_module("Gradpath")
+_pkg = importlib.import_module("gradpath")
 sys.modules.setdefault("gradpath", _pkg)
 
 from fastapi import FastAPI

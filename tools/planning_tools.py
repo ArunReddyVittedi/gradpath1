@@ -279,19 +279,28 @@ def validate_course_plan(
     }
 
 
-def _collect_all_prerequisites(course_ids: List[str], catalog_lookup: Dict[str, Any]) -> List[str]:
-    """Collect all prerequisite courses (recursively) needed to unlock the given courses.
+def _collect_all_prerequisites(
+    course_ids: List[str],
+    placed: set = None,
+) -> List[str]:
+    """Collect prerequisite courses (recursively) needed to unlock the given courses.
 
-    Returns a list of prerequisite course IDs not already in course_ids,
-    in dependency order (prerequisites come first).
+    Stops traversal at any course already in `placed` (already completed) —
+    there is no need to plan prereqs for courses the student has already passed.
+
+    Returns prerequisite course IDs not in course_ids, in dependency order.
     """
-    needed = list(course_ids)
+    if placed is None:
+        placed = set()
+
     visited = set(course_ids)
     prereq_courses: List[str] = []
-
     queue = list(course_ids)
+
     while queue:
         cid = queue.pop(0)
+        if cid in placed:
+            continue  # already completed — don't traverse its prerequisite chain
         for prereq in get_course_prerequisites(cid):
             p = _normalize(prereq)
             if p not in visited:
@@ -299,7 +308,6 @@ def _collect_all_prerequisites(course_ids: List[str], catalog_lookup: Dict[str, 
                 prereq_courses.append(p)
                 queue.append(p)
 
-    # Return only the extra prereqs not already in required list, in reverse order (roots first)
     return [p for p in reversed(prereq_courses) if p not in set(course_ids)]
 
 
@@ -309,6 +317,7 @@ def build_full_graduation_plan(
     current_semester: str,
     max_credits_per_semester: int = 12,
     min_credits_per_semester: int = 9,
+    max_courses_per_semester: int = 6,
     student_type: str = "undergraduate",
     semesters_used: int = 0,
 ) -> List[Dict[str, Any]]:
@@ -330,15 +339,19 @@ def build_full_graduation_plan(
 
     catalog_list = catalog if isinstance(catalog, list) else catalog.get("courses", [])
     credits_by_course = {_normalize(c["course_id"]): c.get("credits", 0) for c in catalog_list}
-    catalog_lookup = {_normalize(c["course_id"]): c for c in catalog_list}
 
     placed = {_normalize(c) for c in completed_course_ids}
     required_normalized = [_normalize(c) for c in required_courses]
 
-    # Include prerequisite courses that are blocking required courses but not in requirements
-    blocker_prereqs = _collect_all_prerequisites(required_normalized, catalog_lookup)
-    all_to_plan = blocker_prereqs + required_normalized
-    remaining = [c for c in all_to_plan if c not in placed]
+    # Only collect blocker prerequisites for courses not yet completed.
+    # Collecting prereqs for already-completed courses incorrectly adds their
+    # unrecorded prerequisite chains (e.g. MAT-1001 for a completed MAT-1010).
+    remaining_required = [c for c in required_normalized if c not in placed]
+    blocker_prereqs = _collect_all_prerequisites(remaining_required, placed)
+    # Filter out any blocker prereqs that are already completed
+    blocker_prereqs = [c for c in blocker_prereqs if c not in placed]
+    all_to_plan = blocker_prereqs + remaining_required
+    remaining = list(dict.fromkeys(all_to_plan))  # deduplicate, preserve order
 
     total_semesters = _TOTAL_SEMESTERS.get(student_type.lower(), 8)
     remaining_semesters = max(total_semesters - semesters_used, 0)
@@ -353,20 +366,40 @@ def build_full_graduation_plan(
         template = _template_term(season)
         offered = {_normalize(c) for c in get_offered_course_ids(template)}
 
+        # Determine which courses are exclusive to this season (not offered next season)
+        next_season = "Spring" if season == "Fall" else "Fall"
+        next_template = _template_term(next_season)
+        next_offered = {_normalize(c) for c in get_offered_course_ids(next_template)}
+        # Sort: season-exclusive courses first so they don't get bumped to a later semester
+        def _priority(cid: str) -> int:
+            if cid not in offered:
+                return 2          # not available this season
+            if cid not in next_offered:
+                return 0          # exclusive to this season — schedule now
+            return 1              # available both seasons — flexible
+
+        prioritized_remaining = sorted(remaining, key=_priority)
+
         semester_courses: List[str] = []
         total_credits = 0
         deferred: List[str] = []
 
-        for course_id in remaining:
+        for course_id in prioritized_remaining:
             prereqs = get_course_prerequisites(course_id)
             unmet = [p for p in prereqs if p not in placed]
             if unmet or course_id not in offered:
                 deferred.append(course_id)
                 continue
             course_credits = credits_by_course.get(course_id, 0)
-            if total_credits + course_credits > max_credits_per_semester:
-                deferred.append(course_id)
-                continue
+            if course_credits > 0:
+                # Only count-bearing courses consume credit and course-count slots
+                if total_credits + course_credits > max_credits_per_semester:
+                    deferred.append(course_id)
+                    continue
+                counted = sum(1 for c in semester_courses if credits_by_course.get(c, 0) > 0)
+                if counted >= max_courses_per_semester:
+                    deferred.append(course_id)
+                    continue
             semester_courses.append(course_id)
             total_credits += course_credits
 

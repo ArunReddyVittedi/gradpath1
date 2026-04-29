@@ -62,7 +62,9 @@ def build_chat_router(session_store: SessionStore) -> APIRouter:
 
         try:
             analysis = await analyze_request(
-                user_text, parsed_transcript, session_id, session_profile=state.profile
+                user_text, parsed_transcript, session_id,
+                session_profile=state.profile,
+                session_dashboard=state.dashboard,
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
