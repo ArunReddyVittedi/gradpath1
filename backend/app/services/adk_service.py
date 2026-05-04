@@ -274,6 +274,7 @@ class AdkRunnerService:
         session_meta = await self._ensure_followup_session(web_session_id)
 
         completed_ids = [c["course_id"] for c in profile.get("completed_courses", [])]
+        in_progress_ids = [c["course_id"] for c in profile.get("in_progress_courses", [])]
         career_goal = profile.get("career_goal")
         preferences = profile.get("preferences", "balanced")
         _total = {"undergraduate": 8, "graduate": 4, "phd": 10}.get(student_type, 8)
@@ -286,7 +287,8 @@ class AdkRunnerService:
             f"Semesters completed (including current): {semesters_used} of {_total}.\n"
             f"Semesters remaining after this one: {_remaining}. Plan exactly {_remaining} future semesters — no more.\n"
             f"My completed courses are: {', '.join(completed_ids) or 'none'}.\n"
-            f"My credits earned so far: {profile.get('credits_earned', 0)}.\n"
+            + (f"My in-progress courses (being taken this semester — do NOT reschedule these): {', '.join(in_progress_ids)}.\n" if in_progress_ids else "")
+            + f"My credits earned so far: {profile.get('credits_earned', 0)}.\n"
             + (f"My career goal is: {career_goal}.\n" if career_goal else "")
             + f"My preference is: {preferences}.\n"
             + f"{message.strip() or 'Please update my semester plan.'}\n"

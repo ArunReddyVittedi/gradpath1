@@ -152,13 +152,20 @@ function formatTimestamp(timestamp: string | null) {
       });
 }
 
+const HIDDEN_NOTE_TITLES = new Set([
+  'Google ADK workflow active',
+  'Transcript attached',
+  'Plan generated',
+]);
+
 export function DashboardPanel({
   dashboard,
   loading,
   sessionId,
   lastAnalysisTimestamp,
 }: DashboardPanelProps) {
-  const { student, progress_summary, completed_courses, recommended_courses, advising_notes, planned_semesters } = dashboard;
+  const { student, progress_summary, completed_courses, recommended_courses, planned_semesters } = dashboard;
+  const advising_notes = dashboard.advising_notes.filter(n => !HIDDEN_NOTE_TITLES.has(n.title));
 
   const hasPlan = planned_semesters.length > 0 || recommended_courses.length > 0;
 
@@ -260,30 +267,47 @@ export function DashboardPanel({
         </DashboardCard>
 
         <DashboardCard title="Degree Progress Summary" eyebrow="Auto-updated">
-          <div className="stats-row">
-            <div className="stat">
-              <span>Credits earned</span>
-              <strong>{progress_summary.credits_earned}</strong>
-            </div>
-            <div className="stat">
-              <span>Required completed</span>
-              <strong>
-                {progress_summary.required_courses_completed}/{progress_summary.required_courses_total}
+          <div className="progress-breakdown">
+            <div className="progress-col progress-col--completed">
+              <span className="progress-col__icon">✓</span>
+              <span className="progress-col__label">Completed</span>
+              <strong className="progress-col__courses">
+                {progress_summary.required_courses_completed} course{progress_summary.required_courses_completed !== 1 ? 's' : ''}
               </strong>
+              <span className="progress-col__credits">{progress_summary.credits_completed} cr</span>
             </div>
-            <div className="stat">
-              <span>Remaining</span>
-              <strong>{progress_summary.required_courses_remaining}</strong>
+            <div className="progress-col progress-col--inprogress">
+              <span className="progress-col__icon">⟳</span>
+              <span className="progress-col__label">In Progress</span>
+              <strong className="progress-col__courses">
+                {progress_summary.required_courses_in_progress} course{progress_summary.required_courses_in_progress !== 1 ? 's' : ''}
+              </strong>
+              <span className="progress-col__credits">{progress_summary.credits_in_progress} cr</span>
+            </div>
+            <div className="progress-col progress-col--remaining">
+              <span className="progress-col__icon">○</span>
+              <span className="progress-col__label">Remaining</span>
+              <strong className="progress-col__courses">
+                {progress_summary.required_courses_remaining} course{progress_summary.required_courses_remaining !== 1 ? 's' : ''}
+              </strong>
+              <span className="progress-col__credits">{progress_summary.credits_remaining} cr</span>
             </div>
           </div>
-          <div className="progress-meter">
+          <div className="seg-bar">
             <div
-              className="progress-meter__fill"
-              style={{ width: `${Math.max(progress_summary.percent_complete, 4)}%` }}
+              className="seg-bar__completed"
+              style={{ width: `${Math.min((progress_summary.credits_completed / (progress_summary.total_credits_required || 120)) * 100, 100)}%` }}
+            />
+            <div
+              className="seg-bar__inprogress"
+              style={{ width: `${Math.min((progress_summary.credits_in_progress / (progress_summary.total_credits_required || 120)) * 100, 100)}%` }}
             />
           </div>
-          <p className="support-text">
-            GradPath keeps this panel read-only so only agent analysis can update degree progress.
+          <p className="support-text seg-bar__legend">
+            <span className="seg-legend seg-legend--completed">■ Completed</span>
+            <span className="seg-legend seg-legend--inprogress">■ In Progress</span>
+            <span className="seg-legend seg-legend--remaining">■ Remaining</span>
+            <span className="seg-legend seg-legend--total">of {progress_summary.total_credits_required} total credits</span>
           </p>
         </DashboardCard>
 

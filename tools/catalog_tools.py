@@ -43,6 +43,15 @@ def get_required_courses(major: str) -> List[str]:
     return requirements.get(major, {}).get("required_courses", [])
 
 
+def get_total_credits_required(major: str, student_type: str = "undergraduate") -> int:
+    """Return total degree credits required for a major and student type."""
+    requirements = load_major_requirements()
+    catalog_value = requirements.get(major, {}).get("total_credits_required")
+    if catalog_value:
+        return int(catalog_value)
+    return {"undergraduate": 120, "graduate": 36, "phd": 60}.get(student_type.lower(), 120)
+
+
 def get_course_prerequisites(course_id: str) -> List[str]:
     """Return prerequisite course IDs for one course, normalized to hyphen format."""
     catalog = load_catalog_data()

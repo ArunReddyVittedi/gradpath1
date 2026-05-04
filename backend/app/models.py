@@ -18,9 +18,16 @@ class CompletedCourse(BaseModel):
 class ProgressSummary(BaseModel):
     major: str
     target_semester: str
-    credits_earned: int
+    # 3-state credit breakdown
+    credits_completed: int = 0
+    credits_in_progress: int = 0
+    credits_remaining: int = 0
+    credits_earned: int          # completed + in_progress (backward compat)
+    total_credits_required: int = 120
+    # 3-state course breakdown
     required_courses_total: int
     required_courses_completed: int
+    required_courses_in_progress: int = 0
     required_courses_remaining: int
     percent_complete: float
     total_recommended_credits: int = 0

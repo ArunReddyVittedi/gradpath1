@@ -1,11 +1,12 @@
 """Planning helpers used for deterministic schedule generation."""
 
 import re
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from .catalog_tools import (
     get_course_prerequisites,
     get_required_courses,
+    get_total_credits_required,
     load_catalog_data,
 )
 from .schedule_tools import get_offered_course_ids
@@ -240,7 +241,10 @@ def get_all_remaining_courses(
     """
     profile = load_student_profile(student_id)
     completed_raw = profile.get("completed_courses", []) if profile.get("status") == "ready" else []
+    in_progress_raw = profile.get("in_progress_courses", []) if profile.get("status") == "ready" else []
     completed = {_normalize(c["course_id"]) for c in completed_raw if isinstance(c, dict)}
+    # Treat in-progress courses as done — they're being taken this semester
+    completed |= {_normalize(c["course_id"]) for c in in_progress_raw if isinstance(c, dict)}
 
     catalog = load_catalog_data()
     catalog_list = catalog if isinstance(catalog, list) else catalog.get("courses", [])
@@ -286,6 +290,14 @@ def get_all_remaining_courses(
             "is_major_requirement": course_id in required_courses,
         })
 
+    credits_earned = sum(
+        int(course_lookup.get(_normalize(c["course_id"]), {}).get("credits", 0))
+        for c in completed_raw + in_progress_raw
+        if isinstance(c, dict)
+    )
+    student_type = profile.get("student_type", "undergraduate")
+    total_credits_required = get_total_credits_required(major, student_type)
+
     return {
         "student_id": student_id,
         "major": major,
@@ -293,6 +305,9 @@ def get_all_remaining_courses(
         "upcoming_semesters": upcoming_semesters,
         "semesters_remaining": semesters_remaining,
         "max_credits_per_semester": 12,
+        "total_credits_required": total_credits_required,
+        "credits_earned": credits_earned,
+        "credits_remaining": max(total_credits_required - credits_earned, 0),
         "remaining_courses": courses_info,
         "total_remaining": len(courses_info),
     }
@@ -388,6 +403,8 @@ def build_full_graduation_plan(
     min_credits_per_semester: int = 9,
     student_type: str = "undergraduate",
     semesters_used: int = 0,
+    in_progress_course_ids: Optional[List[str]] = None,
+    credits_already_earned: int = 0,
 ) -> List[Dict[str, Any]]:
     """Plan all remaining semesters until graduation.
 
@@ -409,7 +426,11 @@ def build_full_graduation_plan(
     credits_by_course = {_normalize(c["course_id"]): c.get("credits", 0) for c in catalog_list}
     catalog_lookup = {_normalize(c["course_id"]): c for c in catalog_list}
 
+    # Treat both completed and in-progress as already placed
     placed = {_normalize(c) for c in completed_course_ids}
+    if in_progress_course_ids:
+        placed |= {_normalize(c) for c in in_progress_course_ids}
+
     required_normalized = [_normalize(c) for c in required_courses]
 
     # Include prerequisite courses that are blocking required courses but not in requirements
@@ -419,6 +440,11 @@ def build_full_graduation_plan(
 
     total_semesters = _TOTAL_SEMESTERS.get(student_type.lower(), 8)
     remaining_semesters = max(total_semesters - semesters_used, 0)
+
+    # Total credit cap — stop planning once degree credit requirement is met
+    total_credits_required = get_total_credits_required(major, student_type)
+    credits_budget = max(total_credits_required - credits_already_earned, 0)
+    credits_planned = 0
     current_term = _next_semester(current_semester)
     planned: List[Dict[str, Any]] = []
 
@@ -444,8 +470,12 @@ def build_full_graduation_plan(
             if total_credits + course_credits > max_credits_per_semester:
                 deferred.append(course_id)
                 continue
+            if credits_planned + course_credits > credits_budget:
+                deferred.append(course_id)
+                continue
             semester_courses.append(course_id)
             total_credits += course_credits
+            credits_planned += course_credits
 
         # Update placed AFTER the semester is fully planned — not during
         placed.update(semester_courses)

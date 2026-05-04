@@ -2,6 +2,7 @@
   "CS": {
     "name": "Computer Science",
     "degree": "BS/BA",
+    "total_credits_required": 120,
     "required_courses": [
       "MAT-1010", "ENG-1001", "ENG-1002",
       "CSC-1058", "CSC-1059", "CSC-2001", "CSC-2054",
@@ -13,6 +14,7 @@
   "BIO": {
     "name": "Biology",
     "degree": "BS/BA",
+    "total_credits_required": 120,
     "required_courses": [
       "ENG-1001", "ENG-1002", "MAT-1010",
       "BIO-1003", "BIO-1004",
@@ -24,6 +26,7 @@
   "CHE": {
     "name": "Chemistry",
     "degree": "BS/BA",
+    "total_credits_required": 120,
     "required_courses": [
       "ENG-1001", "ENG-1002", "MAT-1021", "MAT-1022",
       "BIO-1003", "BIO-1004",
@@ -36,6 +39,7 @@
   "BIOCHEM": {
     "name": "Biochemistry and Molecular Biology",
     "degree": "BS/BA",
+    "total_credits_required": 120,
     "required_courses": [
       "ENG-1001", "ENG-1002", "MAT-1021", "MAT-1022",
       "BIO-1003", "BIO-1004", "BIO-2007", "BIO-2008", "BIO-4007",
@@ -48,6 +52,7 @@
   "FORENSIC": {
     "name": "Chemistry: Forensic Science Concentration",
     "degree": "BS",
+    "total_credits_required": 120,
     "required_courses": [
       "ENG-1001", "ENG-1002", "MAT-1014",
       "BIO-1003", "BIO-1004", "BIO-2008", "BIO-3005",
@@ -60,6 +65,7 @@
   "ENV": {
     "name": "Environmental Science",
     "degree": "BS/BA",
+    "total_credits_required": 120,
     "required_courses": [
       "ENG-1001", "ENG-1002", "MAT-1014", "MAT-1021",
       "BIO-1003", "BIO-1004", "BIO-3005", "BIO-3009",
@@ -71,6 +77,7 @@
   "PHY": {
     "name": "Physics",
     "degree": "BS/BA",
+    "total_credits_required": 120,
     "required_courses": [
       "ENG-1001", "ENG-1002",
       "MAT-1021", "MAT-1022", "MAT-2021", "MAT-2022",
@@ -82,6 +89,7 @@
   "HSC": {
     "name": "Health Science",
     "degree": "BS/BA",
+    "total_credits_required": 120,
     "required_courses": [
       "ENG-1001", "ENG-1002", "MAT-1006",
       "BIO-1003", "BIO-1004",
@@ -94,6 +102,7 @@
   "COM": {
     "name": "Communication",
     "degree": "BS/BA",
+    "total_credits_required": 120,
     "required_courses": [
       "ENG-1001", "ENG-1002",
       "COM-2001", "COM-2002", "COM-2005", "COM-2007",
@@ -104,6 +113,7 @@
   "MAT": {
     "name": "Mathematics",
     "degree": "BS/BA",
+    "total_credits_required": 120,
     "required_courses": [
       "ENG-1001", "ENG-1002",
       "CSC-1058", "CSC-1059",
@@ -114,6 +124,7 @@
   "HIS": {
     "name": "History",
     "degree": "BS/BA",
+    "total_credits_required": 120,
     "required_courses": [
       "ENG-1001", "ENG-1002",
       "HIS-1001", "HIS-1002", "HIS-1005", "HIS-1006",
@@ -125,6 +136,7 @@
   "PHL": {
     "name": "Philosophy",
     "degree": "BS/BA",
+    "total_credits_required": 120,
     "required_courses": [
       "ENG-1001", "ENG-1002",
       "PHL-2001", "PHL-2002", "PHL-2015", "PHL-2017", "PHL-2018", "PHL-2019",
@@ -134,6 +146,7 @@
   "MUS": {
     "name": "Music",
     "degree": "BA",
+    "total_credits_required": 120,
     "required_courses": [
       "MUS-1005", "MUS-1006", "MUS-1007", "MUS-1008",
       "MUS-2003", "MUS-2004", "MUS-2005", "MUS-2006",
@@ -145,6 +158,7 @@
   "PAS": {
     "name": "Pan-Africana Studies",
     "degree": "BS/BA",
+    "total_credits_required": 120,
     "required_courses": [
       "ENG-1001", "ENG-1002",
       "PAS-1001", "PAS-1003", "PAS-1092",
@@ -155,6 +169,7 @@
   "POL": {
     "name": "Political Science",
     "degree": "BS/BA",
+    "total_credits_required": 120,
     "required_courses": [
       "ENG-1001", "ENG-1002",
       "POL-1001", "POL-1002",
@@ -166,6 +181,7 @@
   "PSY": {
     "name": "Psychology",
     "degree": "BS/BA",
+    "total_credits_required": 120,
     "required_courses": [
       "ENG-1001", "ENG-1002",
       "PSY-1001", "PSY-2006", "PSY-2008", "PSY-2014",
@@ -177,6 +193,7 @@
   "HUS": {
     "name": "Human Services",
     "degree": "BS/BA",
+    "total_credits_required": 120,
     "required_courses": [
       "ENG-1001", "ENG-1002",
       "PSY-1001", "SOC-1001",
@@ -188,6 +205,7 @@
   "ART": {
     "name": "Visual Arts",
     "degree": "BS/BA",
+    "total_credits_required": 120,
     "required_courses": [
       "ENG-1001", "ENG-1002",
       "ART-1000", "ART-1001", "ART-1002", "ART-1005",
@@ -199,6 +217,7 @@
   "SOC": {
     "name": "Sociology",
     "degree": "BS/BA",
+    "total_credits_required": 120,
     "required_courses": [
       "ENG-1001", "ENG-1002",
       "SOC-1001", "ANT-2001", "ANT-2005",
@@ -208,6 +227,7 @@
   "ENG": {
     "name": "English Liberal Arts",
     "degree": "BA",
+    "total_credits_required": 120,
     "required_courses": [
       "ENG-1001", "ENG-1002",
       "ENG-2014", "ENG-3019", "ENG-3020",
@@ -218,6 +238,7 @@
   "ACC": {
     "name": "Accounting",
     "degree": "BS/BA",
+    "total_credits_required": 120,
     "required_courses": [
       "ENG-1001", "ENG-1002", "MAT-1014",
       "ECO-2003",
@@ -230,6 +251,7 @@
   "FIN": {
     "name": "Finance",
     "degree": "BS/BA",
+    "total_credits_required": 120,
     "required_courses": [
       "ENG-1001", "ENG-1002", "MAT-1014",
       "ECO-2003",
@@ -243,6 +265,7 @@
   "MGT": {
     "name": "Management",
     "degree": "BS/BA",
+    "total_credits_required": 120,
     "required_courses": [
       "ENG-1001", "ENG-1002", "MAT-1014",
       "ECO-2003",
@@ -255,6 +278,7 @@
   "ISM": {
     "name": "Information Systems Management",
     "degree": "BS/BA",
+    "total_credits_required": 120,
     "required_courses": [
       "ENG-1001", "ENG-1002", "MAT-1014",
       "ECO-2003",
@@ -267,6 +291,7 @@
   "CRJ": {
     "name": "Criminal Justice",
     "degree": "BS/BA",
+    "total_credits_required": 120,
     "required_courses": [
       "ENG-1001", "ENG-1002", "MAT-1014",
       "SOC-1001", "PSY-1001",
@@ -277,6 +302,7 @@
   "ANT": {
     "name": "Anthropology",
     "degree": "BS/BA",
+    "total_credits_required": 120,
     "required_courses": [
       "ENG-1001", "ENG-1002", "MAT-1006",
       "SOC-1001",
@@ -287,6 +313,7 @@
   "REL": {
     "name": "Religion",
     "degree": "BS/BA",
+    "total_credits_required": 120,
     "required_courses": [
       "ENG-1001", "ENG-1002",
       "REL-2000", "REL-2002", "REL-2004",
@@ -298,6 +325,7 @@
   "FRE": {
     "name": "French",
     "degree": "BA",
+    "total_credits_required": 120,
     "required_courses": [
       "ENG-1001", "ENG-1002",
       "FRE-1001", "FRE-1002",
@@ -309,6 +337,7 @@
   "SPN": {
     "name": "Spanish",
     "degree": "BA",
+    "total_credits_required": 120,
     "required_courses": [
       "ENG-1001", "ENG-1002",
       "SPN-1001", "SPN-1002",

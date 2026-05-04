@@ -17,9 +17,14 @@ export type CompletedCourse = {
 export type ProgressSummary = {
   major: string;
   target_semester: string;
+  credits_completed: number;
+  credits_in_progress: number;
+  credits_remaining: number;
   credits_earned: number;
+  total_credits_required: number;
   required_courses_total: number;
   required_courses_completed: number;
+  required_courses_in_progress: number;
   required_courses_remaining: number;
   percent_complete: number;
   total_recommended_credits: number;
