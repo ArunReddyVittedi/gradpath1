@@ -22,10 +22,19 @@ export type ProgressSummary = {
   credits_remaining: number;
   credits_earned: number;
   total_credits_required: number;
+  // core / major
   required_courses_total: number;
   required_courses_completed: number;
   required_courses_in_progress: number;
   required_courses_remaining: number;
+  required_credits_completed: number;
+  required_credits_in_progress: number;
+  // electives & gen ed
+  elective_courses_completed: number;
+  elective_credits_completed: number;
+  elective_courses_in_progress: number;
+  elective_credits_in_progress: number;
+  elective_credits_remaining: number;
   percent_complete: number;
   total_recommended_credits: number;
 };

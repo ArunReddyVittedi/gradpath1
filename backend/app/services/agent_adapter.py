@@ -500,10 +500,32 @@ def _build_dashboard_from_profile(
     credits_remaining_to_degree = max(total_credits_required - credits_earned, 0)
 
     # 3-state course breakdown
+    req_set = set(required_courses)
     required_completed = sum(1 for course_id in required_courses if course_id in completed_ids)
     required_in_progress = sum(1 for course_id in required_courses if course_id in in_progress_ids)
     required_remaining = max(len(required_courses) - required_completed - required_in_progress, 0)
     percent_complete = round((required_completed / len(required_courses)) * 100, 1) if required_courses else 0.0
+
+    # Required course credit breakdown
+    required_credits_completed = sum(
+        int(course.get("credits", course_lookup.get(course["course_id"], {}).get("credits", 0)))
+        for course in completed_courses_raw
+        if course["course_id"] in req_set
+    )
+    required_credits_in_progress = sum(
+        int(course_lookup.get(course["course_id"], {}).get("credits", 0))
+        for course in in_progress_raw
+        if course["course_id"] in req_set
+    )
+
+    # Elective / gen-ed breakdown (everything not in required list)
+    elective_courses_completed = sum(1 for c in completed_courses_raw if c["course_id"] not in req_set)
+    elective_credits_completed = credits_completed - required_credits_completed
+    elective_courses_in_progress = sum(1 for c in in_progress_raw if c["course_id"] not in req_set)
+    elective_credits_in_progress = credits_in_progress - required_credits_in_progress
+    required_credits_total = sum(int(course_lookup.get(cid, {}).get("credits", 0)) for cid in required_courses)
+    elective_credits_total = max(total_credits_required - required_credits_total, 0)
+    elective_credits_remaining = max(elective_credits_total - elective_credits_completed - elective_credits_in_progress, 0)
 
     notes = [
         AdvisingNote(
@@ -652,6 +674,13 @@ def _build_dashboard_from_profile(
             required_courses_completed=required_completed,
             required_courses_in_progress=required_in_progress,
             required_courses_remaining=required_remaining,
+            required_credits_completed=required_credits_completed,
+            required_credits_in_progress=required_credits_in_progress,
+            elective_courses_completed=elective_courses_completed,
+            elective_credits_completed=elective_credits_completed,
+            elective_courses_in_progress=elective_courses_in_progress,
+            elective_credits_in_progress=elective_credits_in_progress,
+            elective_credits_remaining=elective_credits_remaining,
             percent_complete=percent_complete,
             total_recommended_credits=total_recommended_credits,
         ),

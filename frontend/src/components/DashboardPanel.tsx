@@ -267,6 +267,8 @@ export function DashboardPanel({
         </DashboardCard>
 
         <DashboardCard title="Degree Progress Summary" eyebrow="Auto-updated">
+          {/* ── Core / Major Courses ── */}
+          <p className="progress-section-label">Core / Major Courses</p>
           <div className="progress-breakdown">
             <div className="progress-col progress-col--completed">
               <span className="progress-col__icon">✓</span>
@@ -274,7 +276,7 @@ export function DashboardPanel({
               <strong className="progress-col__courses">
                 {progress_summary.required_courses_completed} course{progress_summary.required_courses_completed !== 1 ? 's' : ''}
               </strong>
-              <span className="progress-col__credits">{progress_summary.credits_completed} cr</span>
+              <span className="progress-col__credits">{progress_summary.required_credits_completed} cr</span>
             </div>
             <div className="progress-col progress-col--inprogress">
               <span className="progress-col__icon">⟳</span>
@@ -282,7 +284,7 @@ export function DashboardPanel({
               <strong className="progress-col__courses">
                 {progress_summary.required_courses_in_progress} course{progress_summary.required_courses_in_progress !== 1 ? 's' : ''}
               </strong>
-              <span className="progress-col__credits">{progress_summary.credits_in_progress} cr</span>
+              <span className="progress-col__credits">{progress_summary.required_credits_in_progress} cr</span>
             </div>
             <div className="progress-col progress-col--remaining">
               <span className="progress-col__icon">○</span>
@@ -290,25 +292,46 @@ export function DashboardPanel({
               <strong className="progress-col__courses">
                 {progress_summary.required_courses_remaining} course{progress_summary.required_courses_remaining !== 1 ? 's' : ''}
               </strong>
-              <span className="progress-col__credits">{progress_summary.credits_remaining} cr</span>
+              <span className="progress-col__credits">
+                {progress_summary.required_courses_total} req total
+              </span>
             </div>
           </div>
           <div className="seg-bar">
-            <div
-              className="seg-bar__completed"
-              style={{ width: `${Math.min((progress_summary.credits_completed / (progress_summary.total_credits_required || 120)) * 100, 100)}%` }}
-            />
-            <div
-              className="seg-bar__inprogress"
-              style={{ width: `${Math.min((progress_summary.credits_in_progress / (progress_summary.total_credits_required || 120)) * 100, 100)}%` }}
-            />
+            <div className="seg-bar__completed" style={{ width: `${Math.min((progress_summary.required_courses_completed / (progress_summary.required_courses_total || 1)) * 100, 100)}%` }} />
+            <div className="seg-bar__inprogress" style={{ width: `${Math.min((progress_summary.required_courses_in_progress / (progress_summary.required_courses_total || 1)) * 100, 100)}%` }} />
           </div>
-          <p className="support-text seg-bar__legend">
-            <span className="seg-legend seg-legend--completed">■ Completed</span>
-            <span className="seg-legend seg-legend--inprogress">■ In Progress</span>
-            <span className="seg-legend seg-legend--remaining">■ Remaining</span>
-            <span className="seg-legend seg-legend--total">of {progress_summary.total_credits_required} total credits</span>
-          </p>
+
+          {/* ── Electives & Gen Ed ── */}
+          <p className="progress-section-label" style={{ marginTop: '18px' }}>Electives &amp; Gen Ed</p>
+          <div className="progress-breakdown">
+            <div className="progress-col progress-col--completed">
+              <span className="progress-col__icon">✓</span>
+              <span className="progress-col__label">Completed</span>
+              <strong className="progress-col__courses">
+                {progress_summary.elective_courses_completed} course{progress_summary.elective_courses_completed !== 1 ? 's' : ''}
+              </strong>
+              <span className="progress-col__credits">{progress_summary.elective_credits_completed} cr</span>
+            </div>
+            <div className="progress-col progress-col--inprogress">
+              <span className="progress-col__icon">⟳</span>
+              <span className="progress-col__label">In Progress</span>
+              <strong className="progress-col__courses">
+                {progress_summary.elective_courses_in_progress} course{progress_summary.elective_courses_in_progress !== 1 ? 's' : ''}
+              </strong>
+              <span className="progress-col__credits">{progress_summary.elective_credits_in_progress} cr</span>
+            </div>
+            <div className="progress-col progress-col--remaining">
+              <span className="progress-col__icon">○</span>
+              <span className="progress-col__label">Remaining</span>
+              <strong className="progress-col__courses">~{progress_summary.elective_credits_remaining} cr</strong>
+              <span className="progress-col__credits">to fulfill</span>
+            </div>
+          </div>
+          <div className="seg-bar" style={{ marginBottom: 0 }}>
+            <div className="seg-bar__completed" style={{ width: `${Math.min(((progress_summary.elective_credits_completed) / (progress_summary.total_credits_required || 120)) * 100, 100)}%` }} />
+            <div className="seg-bar__inprogress" style={{ width: `${Math.min((progress_summary.elective_credits_in_progress / (progress_summary.total_credits_required || 120)) * 100, 100)}%` }} />
+          </div>
         </DashboardCard>
 
         <DashboardCard title="Suggested Next Courses" eyebrow="Agent recommendations">

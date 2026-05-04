@@ -401,6 +401,16 @@ input {
   background: linear-gradient(90deg, #78a6ff 0%, #a2f7df 100%);
 }
 
+/* ── Degree Progress section labels ─────────────────────────────── */
+.progress-section-label {
+  margin: 0 0 10px 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
 /* ── 3-state Degree Progress breakdown ───────────────────────────── */
 .progress-breakdown {
   display: grid;
