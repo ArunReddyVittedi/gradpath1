@@ -5,6 +5,8 @@ This agent is responsible for collecting core planning inputs from the student.
 
 from google.adk.agents import LlmAgent
 
+from gradpath.agents.guardrails import check_input
+
 
 STANDALONE_GREETING_INSTRUCTION = """
 You are an AI academic advisor at GradPath — Lincoln University's AI planning assistant.
@@ -60,6 +62,7 @@ greeting_agent = LlmAgent(
     name="greeting_agent",
     description="Collects the student's basic planning information.",
     model="gemini-2.5-flash",
+    before_agent_callback=check_input,
     instruction="""
 You are the Greeting Agent for GradPath, a beginner-friendly academic planner.
 

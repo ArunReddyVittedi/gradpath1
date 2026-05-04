@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
 
-from tools.catalog_tools import load_catalog_data, load_major_planning_context
+from tools.catalog_tools import load_catalog_data, load_major_planning_context, get_required_courses
 from tools.student_tools import load_student_index, load_student_profile
 from tools.planning_tools import build_full_graduation_plan
 
@@ -362,41 +362,55 @@ async def _try_invoke_followup_agent(
     """Slim pipeline for follow-up messages — greeting + planner only."""
     adk_service = get_adk_runner_service()
 
+    # Compute remaining required courses to enrich the intent agent's context
+    _major = profile.get("major", "CS")
+    _completed_ids = {c["course_id"] for c in profile.get("completed_courses", [])}
+    _completed_ids |= {c["course_id"] for c in profile.get("in_progress_courses", [])}
+    _remaining_courses = [c for c in get_required_courses(_major) if c not in _completed_ids]
+
     # Detect intent first — avoids running the planner for questions and chat
     intent_result = await adk_service.run_followup_intent(
         web_session_id=web_session_id,
         message=message,
         profile=profile,
+        remaining_courses=_remaining_courses,
     )
     intent = (intent_result.greeting_json or {}).get("intent", "plan_change")
 
-    if intent in ("question", "chat"):
+    if intent in ("chat", "question"):
         return StructuredAgentResponse(
             reply_text=intent_result.final_text or "Let me know if you have any other questions!",
-            dashboard=None,  # Keep existing dashboard unchanged
+            dashboard=None,
             profile=profile,
         )
 
-    _current_sem = str(profile.get("current_semester", "Unknown"))
-    _student_type = profile.get("student_type", "undergraduate")
-    _completed_terms = {c.get("term") for c in profile.get("completed_courses", []) if c.get("term")}
+    # Apply any detected changes (major, target_semester, etc.) to the profile
+    # BEFORE calling run_followup so the planner prompt reflects the new values.
+    updated_profile = profile
+    if intent_result.greeting_json:
+        changed = {k: v for k, v in intent_result.greeting_json.items() if v is not None and k != "intent"}
+        if changed:
+            updated_profile = {**profile, **changed}
+
+    _current_sem = str(updated_profile.get("current_semester", "Unknown"))
+    _student_type = updated_profile.get("student_type", "undergraduate")
+    _completed_terms = {c.get("term") for c in updated_profile.get("completed_courses", []) if c.get("term")}
     if _current_sem:
         _completed_terms.add(_current_sem)
     _semesters_used = len(_completed_terms)
     adk_result = await adk_service.run_followup(
         web_session_id=web_session_id,
         message=message,
-        profile=profile,
+        profile=updated_profile,
         semesters_used=_semesters_used,
         student_type=_student_type,
     )
 
-    # Merge any fields the student explicitly changed (non-null) into the saved profile.
-    updated_profile = profile
+    # Merge any additional fields the planner pipeline detected on top of intent changes.
     if adk_result.greeting_json:
         changed = {k: v for k, v in adk_result.greeting_json.items() if v is not None and k != "intent"}
         if changed:
-            updated_profile = {**profile, **changed}
+            updated_profile = {**updated_profile, **changed}
 
     target_semester = adk_result.target_semester or updated_profile.get("target_semester") or "Not specified"
 

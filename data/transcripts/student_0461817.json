@@ -201,5 +201,47 @@
       "grade": "C+",
       "credits": 4
     }
+  ],
+  "in_progress_courses": [
+    {
+      "course_id": "CSC-3053",
+      "source_course_code": "CSC 3053",
+      "source_course_title": "Computer Orgnztn & Archictr",
+      "term": "Spring 2026",
+      "grade": "In Progress",
+      "credits": 0
+    },
+    {
+      "course_id": "CSC-3054",
+      "source_course_code": "CSC 3054",
+      "source_course_title": "Database Design & Development",
+      "term": "Spring 2026",
+      "grade": "In Progress",
+      "credits": 0
+    },
+    {
+      "course_id": "CSC-3058",
+      "source_course_code": "CSC 3058",
+      "source_course_title": "Artfcl Intllgnc & McHn Lrng",
+      "term": "Spring 2026",
+      "grade": "In Progress",
+      "credits": 0
+    },
+    {
+      "course_id": "CSC-3059",
+      "source_course_code": "CSC 3059",
+      "source_course_title": "Cyber Scrty & Informtn Assrnc",
+      "term": "Spring 2026",
+      "grade": "In Progress",
+      "credits": 0
+    },
+    {
+      "course_id": "CSC-4054",
+      "source_course_code": "CSC 4054",
+      "source_course_title": "Software Engineering",
+      "term": "Spring 2026",
+      "grade": "In Progress",
+      "credits": 0
+    }
   ]
 }

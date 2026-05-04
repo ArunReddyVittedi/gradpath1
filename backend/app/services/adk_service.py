@@ -110,18 +110,22 @@ class AdkRunnerService:
         web_session_id: str,
         message: str,
         profile: Dict[str, Any],
+        remaining_courses: Optional[List[str]] = None,
     ) -> AdkRunResult:
         """Run just the greeting agent to detect intent and answer questions conversationally."""
         runner = self._get_followup_intent_runner()
         session_meta = await self._ensure_followup_intent_session(web_session_id)
 
         completed_ids = [c["course_id"] for c in profile.get("completed_courses", [])]
+        in_progress_ids = [c["course_id"] for c in profile.get("in_progress_courses", [])]
         career_goal = profile.get("career_goal")
         prompt = (
             f"Student profile — major: {profile.get('major', 'CS')}, "
             f"current semester: {profile.get('current_semester', 'Unknown')}, "
             f"completed courses: {', '.join(completed_ids) or 'none'}"
+            + (f", in-progress courses: {', '.join(in_progress_ids)}" if in_progress_ids else "")
             + (f", career goal: {career_goal}" if career_goal else "")
+            + (f", remaining required courses: {', '.join(remaining_courses)}" if remaining_courses else "")
             + f".\n\nStudent message: {message.strip()}"
         )
         content = types.Content(role="user", parts=[types.Part.from_text(text=prompt)])
@@ -207,8 +211,10 @@ class AdkRunnerService:
         target_semester = greeting_json.get("target_semester") if greeting_json else None
         max_credits_val = greeting_json.get("max_credits") if greeting_json else None
         max_credits = int(max_credits_val) if max_credits_val is not None else None
+        # Strip any leaked JSON blocks so the chat bubble shows only conversational text
+        clean_text = _strip_json_from_text(final_text) if greeting_json else final_text
         return AdkRunResult(
-            final_text=final_text,
+            final_text=clean_text,
             planner_json=None,
             raw_texts=raw_texts,
             target_semester=target_semester,

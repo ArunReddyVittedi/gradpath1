@@ -17,6 +17,7 @@ from gradpath.agents import (
     transcript_agent,
 )
 from gradpath.agents.greeting_agent import STANDALONE_GREETING_INSTRUCTION
+from gradpath.agents.guardrails import check_input
 
 # ADK does not allow the same agent instance to have two parent agents.
 # We need separate instances of greeting_agent and planner_agent for the slim pipeline.
@@ -27,6 +28,7 @@ standalone_greeting_agent = LlmAgent(
     description="Conversational advisor that collects student info through natural dialogue.",
     model="gemini-2.5-flash",
     instruction=STANDALONE_GREETING_INSTRUCTION,
+    before_agent_callback=check_input,
 )
 
 _followup_greeting_agent = LlmAgent(
@@ -34,6 +36,7 @@ _followup_greeting_agent = LlmAgent(
     description="Collects only changed planning inputs on follow-up messages.",
     model="gemini-2.5-flash",
     instruction=greeting_agent.instruction,
+    before_agent_callback=check_input,
 )
 
 # Standalone intent detector — runs just the greeting agent to classify intent and answer questions
@@ -42,6 +45,7 @@ followup_intent_agent = LlmAgent(
     description="Detects intent (plan_change / question / chat) and answers questions conversationally.",
     model="gemini-2.5-flash",
     instruction=greeting_agent.instruction,
+    before_agent_callback=check_input,
 )
 
 _followup_planner_agent = LlmAgent(

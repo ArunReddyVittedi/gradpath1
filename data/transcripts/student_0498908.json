@@ -11,6 +11,30 @@
   "completed_courses": [
     {
       "course_id": "BIO-1003",
+      "source_course_code": "BIO1003",
+      "source_course_title": "General Biology I for Bio Maj",
+      "term": "Fall 2025",
+      "grade": "C",
+      "credits": 4
+    },
+    {
+      "course_id": "ENG-1001",
+      "source_course_code": "ENG1001",
+      "source_course_title": "English Composition I",
+      "term": "Fall 2025",
+      "grade": "A",
+      "credits": 4
+    },
+    {
+      "course_id": "REL-2000",
+      "source_course_code": "REL2000",
+      "source_course_title": "Introduction to Religion",
+      "term": "Fall 2025",
+      "grade": "C",
+      "credits": 4
+    },
+    {
+      "course_id": "BIO-1003",
       "source_course_code": "BIO 1003",
       "source_course_title": "General Biology I for Bio Maj",
       "term": "Fall 2025",

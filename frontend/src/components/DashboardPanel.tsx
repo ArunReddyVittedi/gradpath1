@@ -66,22 +66,20 @@ function SemesterAccordion({ courses }: { courses: CompletedCourse[] }) {
                 {termCourses.length} course{termCourses.length !== 1 ? 's' : ''} · {totalCredits} cr
               </span>
             </button>
-            {isOpen && (
-              <ul className="semester-course-list">
-                {termCourses.map(course => (
-                  <li key={course.course_id} className="semester-course-item">
-                    <div className="semester-course-main">
-                      <strong>{course.course_id}</strong>
-                      <span>{course.title}</span>
-                    </div>
-                    <div className="semester-course-meta">
-                      {course.grade && <span className="pill">{course.grade}</span>}
-                      <span className="pill">{course.credits} cr</span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <ul className={`semester-course-list${isOpen ? '' : ' semester-course-list--collapsed'}`}>
+              {termCourses.map(course => (
+                <li key={course.course_id} className="semester-course-item">
+                  <div className="semester-course-main">
+                    <strong>{course.course_id}</strong>
+                    <span>{course.title}</span>
+                  </div>
+                  <div className="semester-course-meta">
+                    {course.grade && <span className="pill">{course.grade}</span>}
+                    <span className="pill">{course.credits} cr</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
           </div>
         );
       })}
@@ -114,21 +112,19 @@ function PlannedSemesterAccordion({ semesters }: { semesters: PlannedSemester[] 
               </span>
               <span className="pill planned-pill">Planned</span>
             </button>
-            {isOpen && (
-              <ul className="semester-course-list">
-                {sem.courses.map((course: import('../types').PlannedCourse) => (
-                  <li key={course.course_id} className="semester-course-item">
-                    <div className="semester-course-main">
-                      <strong>{course.course_id}</strong>
-                      <span>{course.title}</span>
-                    </div>
-                    <div className="semester-course-meta">
-                      <span className="pill">{course.credits} cr</span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <ul className={`semester-course-list${isOpen ? '' : ' semester-course-list--collapsed'}`}>
+              {sem.courses.map((course: import('../types').PlannedCourse) => (
+                <li key={course.course_id} className="semester-course-item">
+                  <div className="semester-course-main">
+                    <strong>{course.course_id}</strong>
+                    <span>{course.title}</span>
+                  </div>
+                  <div className="semester-course-meta">
+                    <span className="pill">{course.credits} cr</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
           </div>
         );
       })}
@@ -164,8 +160,10 @@ export function DashboardPanel({
 }: DashboardPanelProps) {
   const { student, progress_summary, completed_courses, recommended_courses, advising_notes, planned_semesters } = dashboard;
 
+  const hasPlan = planned_semesters.length > 0 || recommended_courses.length > 0;
+
   return (
-    <div className="dashboard-panel">
+    <div className="dashboard-panel" data-print-date={new Date().toLocaleDateString()}>
       <div className="session-strip" aria-live="polite">
         <div className="session-chip">
           <span>Session</span>
@@ -175,6 +173,15 @@ export function DashboardPanel({
           <span>Last analysis</span>
           <strong>{loading ? 'Analyzing now...' : formatTimestamp(lastAnalysisTimestamp)}</strong>
         </div>
+        {hasPlan && (
+          <button
+            className="print-btn"
+            onClick={() => window.print()}
+            disabled={loading}
+          >
+            ↓ Download Plan
+          </button>
+        )}
       </div>
 
       <header className="hero-card">

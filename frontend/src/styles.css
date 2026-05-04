@@ -380,6 +380,10 @@ input {
   padding: 4px 8px;
 }
 
+.semester-course-list--collapsed {
+  display: none;
+}
+
 /* ── End semester accordion ──────────────────────────────────────── */
 
 .progress-meter {
@@ -647,5 +651,250 @@ input {
 
   .app-shell {
     padding: 14px;
+  }
+}
+
+/* ── Print button ────────────────────────────────────────────────── */
+.print-btn {
+  border: 1px solid rgba(120, 166, 255, 0.4);
+  border-radius: 999px;
+  padding: 8px 16px;
+  background: rgba(120, 166, 255, 0.12);
+  color: #d4e5ff;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.print-btn:hover {
+  background: rgba(120, 166, 255, 0.22);
+}
+
+.print-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Print / PDF export ──────────────────────────────────────────── */
+@media print {
+  @page {
+    margin: 1.5cm;
+    size: A4 portrait;
+  }
+
+  /* Reset colours — dark theme won't print */
+  :root {
+    color-scheme: light !important;
+    --border: #ddd;
+    --text-muted: #555;
+    --text-soft: #111;
+    --accent: #2563eb;
+    --accent-strong: #059669;
+    --warning: #b45309;
+  }
+
+  body {
+    height: auto;
+    overflow: visible;
+    background: white !important;
+    color: #111 !important;
+  }
+
+  #root,
+  .app-shell {
+    height: auto;
+    overflow: visible;
+    display: block;
+    padding: 0;
+    background: white !important;
+  }
+
+  /* Hide everything except the dashboard */
+  .app-shell__right,
+  .session-strip,
+  .print-btn,
+  .hero-card__badge,
+  .support-text {
+    display: none !important;
+  }
+
+  /* Print-only header with student info and date */
+  .dashboard-panel::before {
+    content: 'Lincoln University — GradPath Academic Plan  ·  Printed ' attr(data-print-date);
+    display: block;
+    font-size: 0.8rem;
+    color: #555;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 8px;
+    margin-bottom: 16px;
+  }
+
+  /* Reset card backgrounds */
+  .hero-card,
+  .dashboard-card {
+    background: white !important;
+    border: 1px solid #ddd !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    border-radius: 8px !important;
+  }
+
+  .hero-card {
+    grid-template-columns: 1fr !important;
+  }
+
+  .hero-card h1 {
+    font-size: 1.4rem !important;
+    color: #111 !important;
+  }
+
+  .hero-card p,
+  .hero-card__meta {
+    color: #333 !important;
+    background: #f5f5f5 !important;
+    border-radius: 6px !important;
+  }
+
+  .hero-card__meta span,
+  .student-meta span,
+  .stat span {
+    color: #555 !important;
+  }
+
+  .hero-card__meta strong,
+  .student-meta strong,
+  .stat strong {
+    color: #111 !important;
+  }
+
+  /* Dashboard grid single column for print */
+  .dashboard-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Semester accordions — expand all, reset colours */
+  .semester-course-list--collapsed {
+    display: flex !important;
+  }
+
+  .semester-block {
+    border: 1px solid #ddd !important;
+    border-radius: 6px !important;
+    break-inside: avoid;
+    margin-bottom: 6px;
+  }
+
+  .semester-header {
+    background: #f5f5f5 !important;
+    color: #111 !important;
+  }
+
+  .semester-name {
+    color: #111 !important;
+  }
+
+  .semester-meta {
+    color: #555 !important;
+  }
+
+  .semester-course-main strong {
+    color: #2563eb !important;
+  }
+
+  .semester-course-main span {
+    color: #555 !important;
+  }
+
+  .semester-course-list {
+    background: white !important;
+    border-top: 1px solid #eee !important;
+  }
+
+  .semester-course-item {
+    border-bottom: 1px solid #f0f0f0 !important;
+  }
+
+  /* Planned accordion label */
+  .planned-accordion__label {
+    color: #059669 !important;
+  }
+
+  .semester-block--planned {
+    border-color: #bbf7d0 !important;
+  }
+
+  .semester-block--planned .semester-header {
+    background: #f0fdf4 !important;
+  }
+
+  .semester-block--planned .semester-name {
+    color: #059669 !important;
+  }
+
+  /* Pills */
+  .pill {
+    background: #f0f0f0 !important;
+    color: #333 !important;
+    border: 1px solid #ddd !important;
+  }
+
+  .planned-pill {
+    background: #d1fae5 !important;
+    color: #059669 !important;
+  }
+
+  /* Progress meter */
+  .progress-meter {
+    background: #e5e7eb !important;
+  }
+
+  .progress-meter__fill {
+    background: #2563eb !important;
+  }
+
+  /* Notes */
+  .note {
+    background: #fafafa !important;
+    border: 1px solid #ddd !important;
+    border-radius: 6px !important;
+    break-inside: avoid;
+  }
+
+  .note strong {
+    color: #111 !important;
+  }
+
+  .note--warning {
+    border-color: #fcd34d !important;
+  }
+
+  .note--warning strong {
+    color: #b45309 !important;
+  }
+
+  .note--success strong {
+    color: #059669 !important;
+  }
+
+  .note--info strong {
+    color: #2563eb !important;
+  }
+
+  /* Recommendations */
+  .recommendation-list__item {
+    background: #fafafa !important;
+    border: 1px solid #ddd !important;
+    border-radius: 6px !important;
+    break-inside: avoid;
+  }
+
+  .recommendation-list__item strong {
+    color: #2563eb !important;
+  }
+
+  .recommendation-list__item span,
+  .recommendation-list__item p {
+    color: #555 !important;
   }
 }
