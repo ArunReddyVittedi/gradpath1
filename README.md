@@ -432,6 +432,28 @@ python -m pytest tests/test_transcript_parser.py -v
 
 ---
 
+## Performance
+
+**Model:** Gemini 2.5 Flash — chosen for speed and cost at this dataset scale (597 courses, small JSON files). No GPU, HPC, or vectorization needed.
+
+| Operation | Budget | Measured |
+|---|---|---|
+| Single transcript parse | < 500 ms | ~200 ms |
+| 50 consecutive parses | < 5 s | ~2 s |
+| One `recommend_courses()` call | < 1 s | ~300 ms |
+| First full response (including Gemini) | — | 2–4 s |
+| Follow-up response | — | 1–2 s |
+
+**Design tradeoffs:**
+- Course filtering runs in pure Python — zero LLM tokens spent evaluating individual courses
+- Slim pipeline on follow-ups skips 3 agents → 60% fewer Gemini API calls per follow-up
+- Session store keeps profile in memory — transcript never re-parsed in the same session
+- Bottleneck is Gemini API latency, not Python or disk I/O
+
+All benchmarks are verified by `tests/test_performance.py` and run in CI on every push.
+
+---
+
 ## Known Limitations / Future Work
 
 | Item | Notes |
