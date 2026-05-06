@@ -7,7 +7,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.7.0] — 2026-05-05
+## [1.0.0] — 2026-05-06
 
 ### Added
 - Dual ADK pipeline: full pipeline for first message, slim pipeline for follow-ups (60% fewer LLM calls on follow-ups)
@@ -15,15 +15,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - 3-state degree progress dashboard: Completed / In Progress / Remaining with credit breakdown
 - What-if scenario support: "What if I switch to Biology?" or "What if I can only take 9 credits?"
 - Print and PDF export of the graduation plan from the dashboard
-- Full test suite: 66 tests across 6 files (unit, integration, end-to-end, performance)
-- GitHub Actions CI workflow — runs all tests on every push and pull request
+- Full test suite: 6 modules across unit, integration, end-to-end, and performance tests
+- GitHub Actions CI workflow — runs all tests on Ubuntu on every push and pull request
 - Apache 2.0 LICENSE file
-- Fall 2026 schedule data (`fall_2026.json`, 210 sections)
 - Transcript deduplication — repeated course entries no longer inflate completed credit counts
+- Wrapped-line fragment buffering in two-column PDF transcript parser
 
 ### Fixed
 - Semester counting across academic years (fall → spring → summer sequence)
 - CIP courses no longer re-scheduled after completion
+- Duplicate courses in completed history deduplicated by normalized course ID
+- Wrapped course titles in two-column LU PDFs now parsed correctly (CSC-3055 fix)
 - JSON data no longer leaked raw in agent chat output
 - Transcript parser now correctly excludes failed grades (F, NP, NC, U)
 
@@ -33,7 +35,6 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ### Known Issues
 - Scanned / image-only PDFs require OCR preprocessing before upload
 - Session memory is in-memory only — cleared on server restart
-- Fall 2026 schedule present but limited; some sections inferred from catalog only
 
 ---
 
